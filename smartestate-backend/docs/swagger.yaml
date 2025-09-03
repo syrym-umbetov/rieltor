@@ -1,0 +1,1423 @@
+basePath: /api
+definitions:
+  internal_api_handlers.GenerateCreativesRequest:
+    properties:
+      platforms:
+        example:
+        - facebook
+        - instagram
+        - google
+        items:
+          type: string
+        type: array
+      property_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - platforms
+    - property_id
+    type: object
+  internal_api_handlers.LoginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_api_handlers.MessageRequest:
+    properties:
+      content:
+        example: Найди мне квартиру в Алматы
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - content
+    - session_id
+    type: object
+  internal_api_handlers.RegisterRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      full_name:
+        example: John Doe
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+      phone:
+        example: "+77001234567"
+        type: string
+    required:
+    - email
+    - full_name
+    - password
+    type: object
+  smartestate_internal_models.Address:
+    properties:
+      city:
+        type: string
+      country:
+        type: string
+      postal_code:
+        type: string
+      region:
+        type: string
+      street:
+        type: string
+    type: object
+  smartestate_internal_models.Campaign:
+    properties:
+      budget:
+        type: number
+      created_at:
+        type: string
+      creatives:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.Creative'
+        type: array
+      duration_days:
+        type: integer
+      end_date:
+        type: string
+      id:
+        type: string
+      metrics:
+        $ref: '#/definitions/smartestate_internal_models.CampaignMetrics'
+      name:
+        type: string
+      platforms:
+        items:
+          type: string
+        type: array
+      property:
+        $ref: '#/definitions/smartestate_internal_models.Property'
+      property_id:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+      target_audience:
+        $ref: '#/definitions/smartestate_internal_models.TargetAudience'
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/smartestate_internal_models.User'
+      user_id:
+        type: string
+    type: object
+  smartestate_internal_models.CampaignMetrics:
+    properties:
+      clicks:
+        type: integer
+      conversions:
+        type: integer
+      cost_per_click:
+        type: number
+      cost_per_lead:
+        type: number
+      ctr:
+        type: number
+      impressions:
+        type: integer
+      last_updated:
+        type: string
+      spend:
+        type: number
+    type: object
+  smartestate_internal_models.ChatContext:
+    properties:
+      last_intent:
+        type: string
+      property_preferences:
+        additionalProperties: true
+        type: object
+      search_history:
+        items:
+          type: string
+        type: array
+    type: object
+  smartestate_internal_models.ChatMessage:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/smartestate_internal_models.MessageMetadata'
+      role:
+        description: user, assistant, system
+        type: string
+      session:
+        $ref: '#/definitions/smartestate_internal_models.ChatSession'
+      session_id:
+        type: string
+    type: object
+  smartestate_internal_models.ChatSession:
+    properties:
+      context:
+        $ref: '#/definitions/smartestate_internal_models.ChatContext'
+      created_at:
+        type: string
+      id:
+        type: string
+      messages:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.ChatMessage'
+        type: array
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/smartestate_internal_models.User'
+      user_id:
+        type: string
+    type: object
+  smartestate_internal_models.Coordinates:
+    properties:
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+  smartestate_internal_models.Creative:
+    properties:
+      cta:
+        type: string
+      description:
+        type: string
+      headline:
+        type: string
+      id:
+        type: string
+      media_url:
+        type: string
+      metadata:
+        additionalProperties: true
+        type: object
+      platform:
+        type: string
+      type:
+        description: image, video, carousel
+        type: string
+    type: object
+  smartestate_internal_models.Features:
+    properties:
+      amenities:
+        items:
+          type: string
+        type: array
+      bathrooms:
+        type: integer
+      bedrooms:
+        type: integer
+      furnished:
+        type: boolean
+      has_balcony:
+        type: boolean
+      has_elevator:
+        type: boolean
+      has_parking:
+        type: boolean
+      year_built:
+        type: integer
+    type: object
+  smartestate_internal_models.MessageMetadata:
+    properties:
+      actions:
+        items:
+          type: string
+        type: array
+      confidence:
+        type: number
+      extra:
+        additionalProperties: true
+        type: object
+      property_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  smartestate_internal_models.Property:
+    properties:
+      address:
+        $ref: '#/definitions/smartestate_internal_models.Address'
+      area_sqm:
+        type: number
+      coordinates:
+        $ref: '#/definitions/smartestate_internal_models.Coordinates'
+      created_at:
+        type: string
+      description:
+        type: string
+      features:
+        $ref: '#/definitions/smartestate_internal_models.Features'
+      floor:
+        type: integer
+      id:
+        type: string
+      images:
+        items:
+          type: string
+        type: array
+      price:
+        type: number
+      property_type:
+        type: string
+      rooms:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+      total_floors:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/smartestate_internal_models.User'
+      user_id:
+        type: string
+      views:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.PropertyView'
+        type: array
+      vr_tour_url:
+        type: string
+    type: object
+  smartestate_internal_models.PropertyView:
+    properties:
+      duration:
+        description: Duration in seconds
+        type: integer
+      id:
+        type: string
+      ip_address:
+        type: string
+      property:
+        $ref: '#/definitions/smartestate_internal_models.Property'
+      property_id:
+        type: string
+      referrer:
+        type: string
+      user:
+        $ref: '#/definitions/smartestate_internal_models.User'
+      user_agent:
+        type: string
+      user_id:
+        description: Can be null for anonymous views
+        type: string
+      viewed_at:
+        type: string
+    type: object
+  smartestate_internal_models.TargetAudience:
+    properties:
+      age_range:
+        items:
+          type: integer
+        type: array
+      behaviors:
+        items:
+          type: string
+        type: array
+      custom_params:
+        additionalProperties: true
+        type: object
+      gender:
+        type: string
+      interests:
+        items:
+          type: string
+        type: array
+      locations:
+        items:
+          type: string
+        type: array
+    type: object
+  smartestate_internal_models.User:
+    properties:
+      avatar_url:
+        type: string
+      campaigns:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.Campaign'
+        type: array
+      chat_sessions:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.ChatSession'
+        type: array
+      created_at:
+        type: string
+      deleted_at:
+        description: <- изменено
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      phone:
+        type: string
+      properties:
+        description: Relationships - remove constraint tags for initial migration
+        items:
+          $ref: '#/definitions/smartestate_internal_models.Property'
+        type: array
+      role:
+        type: string
+      subscription_tier:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@smartestate.kz
+    name: API Support
+    url: http://www.smartestate.kz/support
+  description: AI-powered Real Estate Platform API for Kazakhstan
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: SmartEstate API
+  version: "1.0"
+paths:
+  /analytics/campaigns/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить аналитику по рекламной кампании
+      parameters:
+      - description: ID кампании
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Метрики кампании
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка получения аналитики
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Аналитика рекламной кампании
+      tags:
+      - Analytics
+  /analytics/market-trends:
+    get:
+      consumes:
+      - application/json
+      description: Получить тренды рынка недвижимости по городу и типу недвижимости
+      parameters:
+      - default: almaty
+        description: Город
+        enum:
+        - almaty
+        - astana
+        - shymkent
+        in: query
+        name: city
+        type: string
+      - default: apartment
+        description: Тип недвижимости
+        enum:
+        - apartment
+        - house
+        - commercial
+        - land
+        in: query
+        name: property_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Рыночные тренды и статистика
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Ошибка получения трендов
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Тренды рынка
+      tags:
+      - Analytics
+  /analytics/properties/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить аналитику по конкретному объекту недвижимости
+      parameters:
+      - description: ID недвижимости
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: '"30 дней назад"'
+        description: Начальная дата (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - default: '"сегодня"'
+        description: Конечная дата (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Аналитические данные
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка получения аналитики
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Аналитика недвижимости
+      tags:
+      - Analytics
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with email and password
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful with tokens and user info
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request - Invalid input
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login user
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout the current user (invalidates token in production)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logged out successfully
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Authentication
+  /auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get current user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.User'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - Authentication
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Get a new access token using refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: New access token
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request - Missing refresh token
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Refresh access token
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account
+      parameters:
+      - description: Registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully with tokens
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request - Invalid input
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: User already exists
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Register a new user
+      tags:
+      - Authentication
+  /chat/messages:
+    post:
+      consumes:
+      - application/json
+      description: Отправить сообщение в чат и получить ответ от AI ассистента
+      parameters:
+      - description: Данные сообщения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.MessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Ответ AI ассистента
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.ChatMessage'
+        "400":
+          description: Некорректный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Сессия не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка обработки сообщения
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Отправить сообщение
+      tags:
+      - Chat
+  /chat/sessions:
+    post:
+      consumes:
+      - application/json
+      description: Создать новую сессию чата с AI ассистентом
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Созданная сессия
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.ChatSession'
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Создать чат-сессию
+      tags:
+      - Chat
+  /chat/sessions/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить информацию о конкретной сессии чата
+      parameters:
+      - description: ID сессии
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Информация о сессии
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.ChatSession'
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Сессия не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить чат-сессию
+      tags:
+      - Chat
+  /chat/sessions/{id}/messages:
+    get:
+      consumes:
+      - application/json
+      description: Получить все сообщения из чат-сессии
+      parameters:
+      - description: ID сессии
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список сообщений
+          schema:
+            items:
+              $ref: '#/definitions/smartestate_internal_models.ChatMessage'
+            type: array
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Сессия не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка получения сообщений
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить сообщения
+      tags:
+      - Chat
+  /properties:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of properties with filters
+      parameters:
+      - description: City filter
+        in: query
+        name: city
+        type: string
+      - description: Property type filter
+        in: query
+        name: property_type
+        type: string
+      - description: Minimum price
+        in: query
+        name: min_price
+        type: number
+      - description: Maximum price
+        in: query
+        name: max_price
+        type: number
+      - description: Number of rooms
+        in: query
+        name: rooms
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Properties list with pagination
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List properties
+      tags:
+      - Properties
+    post:
+      consumes:
+      - application/json
+      description: Create a new property listing (requires authentication)
+      parameters:
+      - description: Property data
+        in: body
+        name: property
+        required: true
+        schema:
+          $ref: '#/definitions/smartestate_internal_models.Property'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created property
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.Property'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create property
+      tags:
+      - Properties
+  /properties/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a property listing (requires ownership)
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Property not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete property
+      tags:
+      - Properties
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a property
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Property details
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.Property'
+        "404":
+          description: Property not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get property by ID
+      tags:
+      - Properties
+    put:
+      consumes:
+      - application/json
+      description: Update an existing property (requires ownership)
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated property data
+        in: body
+        name: property
+        required: true
+        schema:
+          $ref: '#/definitions/smartestate_internal_models.Property'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Property not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update property
+      tags:
+      - Properties
+  /properties/{id}/images:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload images for a property listing
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Property images
+        in: formData
+        name: images
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Uploaded image URLs
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Property not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload property images
+      tags:
+      - Properties
+  /properties/{id}/view:
+    post:
+      consumes:
+      - application/json
+      description: Record that a user viewed a property (for analytics)
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Record property view
+      tags:
+      - Properties
+  /properties/recommendations:
+    get:
+      consumes:
+      - application/json
+      description: Get AI-powered property recommendations based on user history
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Recommended properties
+          schema:
+            items:
+              $ref: '#/definitions/smartestate_internal_models.Property'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get property recommendations
+      tags:
+      - Properties
+  /properties/search:
+    get:
+      consumes:
+      - application/json
+      description: AI-powered property search
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Search results
+          schema:
+            items:
+              $ref: '#/definitions/smartestate_internal_models.Property'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Search properties
+      tags:
+      - Properties
+  /targeting/campaigns:
+    get:
+      consumes:
+      - application/json
+      description: Получить список всех рекламных кампаний пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список кампаний
+          schema:
+            items:
+              $ref: '#/definitions/smartestate_internal_models.Campaign'
+            type: array
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка получения кампаний
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Список кампаний
+      tags:
+      - Targeting
+    post:
+      consumes:
+      - application/json
+      description: Создать новую таргетированную рекламную кампанию
+      parameters:
+      - description: Данные кампании
+        in: body
+        name: campaign
+        required: true
+        schema:
+          $ref: '#/definitions/smartestate_internal_models.Campaign'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Созданная кампания
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.Campaign'
+        "400":
+          description: Некорректные данные
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка создания кампании
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Создать рекламную кампанию
+      tags:
+      - Targeting
+  /targeting/campaigns/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить детальную информацию о рекламной кампании
+      parameters:
+      - description: ID кампании
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Информация о кампании
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.Campaign'
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Кампания не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить кампанию
+      tags:
+      - Targeting
+  /targeting/campaigns/{id}/launch:
+    post:
+      consumes:
+      - application/json
+      description: Запустить рекламную кампанию на выбранных площадках
+      parameters:
+      - description: ID кампании
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Кампания успешно запущена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Кампания не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка запуска кампании
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Запустить кампанию
+      tags:
+      - Targeting
+  /targeting/campaigns/{id}/metrics:
+    get:
+      consumes:
+      - application/json
+      description: Получить метрики и статистику рекламной кампании
+      parameters:
+      - description: ID кампании
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Метрики кампании
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Доступ запрещен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Кампания не найдена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка получения метрик
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Метрики кампании
+      tags:
+      - Targeting
+  /targeting/generate-creatives:
+    post:
+      consumes:
+      - application/json
+      description: Генерировать рекламные креативы с помощью AI для разных платформ
+      parameters:
+      - description: Параметры генерации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.GenerateCreativesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сгенерированные креативы для каждой платформы
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Некорректные данные
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка генерации креативов
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Генерировать креативы
+      tags:
+      - Targeting
+  /ws/chat:
+    get:
+      consumes:
+      - application/json
+      description: Установить WebSocket соединение для real-time общения
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: WebSocket соединение установлено
+      security:
+      - BearerAuth: []
+      summary: WebSocket для чата
+      tags:
+      - Chat
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
