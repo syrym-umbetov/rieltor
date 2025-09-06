@@ -12,7 +12,15 @@ import {
     CircularProgress,
     Collapse,
     Button,
-    InputAdornment
+    InputAdornment,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    ToggleButton,
+    ToggleButtonGroup,
+    Tooltip,
+    Fab
 } from '@mui/material'
 import {
     Send,
@@ -21,9 +29,17 @@ import {
     Person,
     ExpandMore,
     ExpandLess,
-    AttachFile
+    AttachFile,
+    Psychology,
+    AutoAwesome,
+    School,
+    Groups,
+    FilterAlt,
+    Search
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
+import PropertyFiltersDisplay from '../filters/PropertyFiltersDisplay'
+import { PropertyFilterExtraction } from '@/types/PropertyFilters'
 
 interface Message {
     id: string
@@ -42,17 +58,25 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
         {
             id: '1',
             role: 'assistant',
-            content: 'Привет! Я ваш AI-риелтор. Чем могу помочь?\n\n• Подобрать квартиру\n• Рассчитать ипотеку\n• Оценить недвижимость\n• Записать на просмотр',
+            content: '👋 Привет! Я AI-риелтор SmartEstate с поддержкой нескольких AI!\n\n🤖 Доступные модели:\n• ChatGPT - универсальный и быстрый\n• Gemini - от Google, отличная аналитика\n• Claude - от Anthropic, детальные ответы\n• Консенсус - мнение всех AI сразу\n\n🏠 Чем могу помочь:\n• Найти идеальную квартиру\n• Рассчитать ипотеку и платежи\n• Оценить стоимость недвижимости\n• Записать на просмотр объектов\n• Дать советы по покупке/продаже\n\nВыберите модель AI и задавайте вопросы! 🚀',
             timestamp: new Date()
         }
     ])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
     const [expanded, setExpanded] = useState(open)
+    const [selectedModel, setSelectedModel] = useState('openai')
+    const [chatMode, setChatMode] = useState<'single' | 'consensus'>('single')
+    const [extractedFilters, setExtractedFilters] = useState<PropertyFilterExtraction | null>(null)
+    const [extractingFilters, setExtractingFilters] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        // Скроллим к самому чату, а не к последнему сообщению внутри
+        const chatElement = document.getElementById('ai-chat-container')
+        if (chatElement) {
+            chatElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
     }
 
     useEffect(() => {
@@ -74,20 +98,57 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
         }
 
         setMessages(prev => [...prev, userMessage])
+        const currentInput = input
         setInput('')
         setIsTyping(true)
 
-        // Simulate AI response
-        setTimeout(() => {
+        try {
+            // Отправляем запрос к нашему API с выбранной моделью
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: [
+                        ...messages.map(msg => ({
+                            role: msg.role,
+                            content: msg.content
+                        })),
+                        {
+                            role: 'user',
+                            content: currentInput
+                        }
+                    ],
+                    model: selectedModel,
+                    mode: chatMode
+                }),
+            })
+
+            const data = await response.json()
+
             const aiResponse: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: generateAIResponse(input),
+                content: data.content,
                 timestamp: new Date()
             }
+
             setMessages(prev => [...prev, aiResponse])
+        } catch (error) {
+            console.error('Chat error:', error)
+            
+            // Fallback response при ошибке
+            const errorResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: 'Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз или используйте быстрые действия ниже.',
+                timestamp: new Date()
+            }
+            setMessages(prev => [...prev, errorResponse])
+        } finally {
             setIsTyping(false)
-        }, 1500)
+        }
     }
 
     const generateAIResponse = (userInput: string) => {
@@ -101,16 +162,53 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
         return 'Обрабатываю запрос... Могу помочь с поиском недвижимости, расчетом ипотеки или оценкой квартиры.'
     }
 
+    const handleExtractFilters = async () => {
+        if (messages.length <= 1) return // Нет диалога для анализа
+
+        setExtractingFilters(true)
+        
+        try {
+            const response = await fetch('/api/extract-filters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: messages.map(msg => ({
+                        role: msg.role,
+                        content: msg.content
+                    })),
+                    model: selectedModel
+                }),
+            })
+
+            if (response.ok) {
+                const extraction: PropertyFilterExtraction = await response.json()
+                setExtractedFilters(extraction)
+            }
+        } catch (error) {
+            console.error('Filter extraction error:', error)
+        } finally {
+            setExtractingFilters(false)
+        }
+    }
+
     const quickActions = [
-        '2-комн в Алматы',
-        'Новостройки',
-        'Ипотека',
-        'Аренда',
-        'Оценка'
+        'Найди 2-комн в Алматы до 40 млн',
+        'Лучшие новостройки',
+        'Ипотека под 12%',
+        'Квартира в аренду',
+        'Как оценить квартиру?'
     ]
 
     return (
-        <Box sx={{ position: 'relative' }}>
+        <Box id="ai-chat-container" sx={{ position: 'relative' }}>
+            {/* Extracted Filters Display */}
+            <PropertyFiltersDisplay 
+                extraction={extractedFilters} 
+                loading={extractingFilters} 
+            />
+            
             {/* Chat Header */}
             <Box
                 sx={{
@@ -146,7 +244,7 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
             <Collapse in={expanded}>
                 <Paper
                     sx={{
-                        height: 400,
+                        height: 800,
                         display: 'flex',
                         flexDirection: 'column',
                         bgcolor: 'background.default'
@@ -217,9 +315,74 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                         <div ref={messagesEndRef} />
                     </Box>
 
+                    {/* AI Model Selector */}
+                    <Box sx={{ px: 2, pb: 1, borderTop: 1, borderColor: 'divider' }}>
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.7, minWidth: 'max-content' }}>
+                                AI Модель:
+                            </Typography>
+                            
+                            <ToggleButtonGroup
+                                value={chatMode}
+                                exclusive
+                                onChange={(_, newMode) => newMode && setChatMode(newMode)}
+                                size="small"
+                                sx={{ mr: 'auto' }}
+                            >
+                                <ToggleButton value="single" sx={{ px: 1, py: 0.5 }}>
+                                    <Tooltip title="Один AI">
+                                        <SmartToy sx={{ fontSize: 16 }} />
+                                    </Tooltip>
+                                </ToggleButton>
+                                <ToggleButton value="consensus" sx={{ px: 1, py: 0.5 }}>
+                                    <Tooltip title="Консенсус всех AI">
+                                        <Groups sx={{ fontSize: 16 }} />
+                                    </Tooltip>
+                                </ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+
+                        {chatMode === 'single' && (
+                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                <Tooltip title="ChatGPT от OpenAI">
+                                    <Chip
+                                        icon={<Psychology />}
+                                        label="ChatGPT"
+                                        onClick={() => setSelectedModel('openai')}
+                                        color={selectedModel === 'openai' ? 'primary' : 'default'}
+                                        variant={selectedModel === 'openai' ? 'filled' : 'outlined'}
+                                        sx={{ cursor: 'pointer' }}
+                                    />
+                                </Tooltip>
+                                
+                                <Tooltip title="Gemini от Google">
+                                    <Chip
+                                        icon={<AutoAwesome />}
+                                        label="Gemini"
+                                        onClick={() => setSelectedModel('gemini')}
+                                        color={selectedModel === 'gemini' ? 'primary' : 'default'}
+                                        variant={selectedModel === 'gemini' ? 'filled' : 'outlined'}
+                                        sx={{ cursor: 'pointer' }}
+                                    />
+                                </Tooltip>
+                                
+                                <Tooltip title="Claude от Anthropic">
+                                    <Chip
+                                        icon={<School />}
+                                        label="Claude"
+                                        onClick={() => setSelectedModel('claude')}
+                                        color={selectedModel === 'claude' ? 'primary' : 'default'}
+                                        variant={selectedModel === 'claude' ? 'filled' : 'outlined'}
+                                        sx={{ cursor: 'pointer' }}
+                                    />
+                                </Tooltip>
+                            </Box>
+                        )}
+                    </Box>
+
                     {/* Quick Actions */}
                     <Box sx={{ px: 2, pb: 1 }}>
-                        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, mb: 1 }}>
                             {quickActions.map((action) => (
                                 <Chip
                                     key={action}
@@ -232,6 +395,32 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                                 />
                             ))}
                         </Box>
+                        
+                        {/* Filter Extraction Button */}
+                        {messages.length > 1 && (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<FilterAlt />}
+                                    onClick={handleExtractFilters}
+                                    disabled={extractingFilters}
+                                    size="small"
+                                    sx={{ 
+                                        borderRadius: 20,
+                                        textTransform: 'none'
+                                    }}
+                                >
+                                    {extractingFilters ? (
+                                        <>
+                                            <CircularProgress size={16} sx={{ mr: 1 }} />
+                                            Анализирую...
+                                        </>
+                                    ) : (
+                                        'Извлечь фильтры поиска'
+                                    )}
+                                </Button>
+                            </Box>
+                        )}
                     </Box>
 
                     {/* Input */}

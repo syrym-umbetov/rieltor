@@ -36,12 +36,14 @@ import PropertySearch from '@/components/property/PropertySearch'
 import FeaturedProperties from '@/components/property/FeaturedProperties'
 import ServicesGrid from '@/components/home/ServicesGrid'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function HomePage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const router = useRouter()
-  const [openChat, setOpenChat] = useState(false)
+  const { user } = useAuth()
+  const [openChat, setOpenChat] = useState(true)
 
   return (
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -83,10 +85,10 @@ export default function HomePage() {
         {/* Featured Properties */}
         <Container maxWidth="lg" sx={{ mt: 6, mb: 4 }}>
           <Typography variant="h4" gutterBottom align="center" fontWeight="bold">
-            Рекомендации AI
+            {user ? `Рекомендации для ${user.full_name?.split(' ')[0]}` : 'Рекомендации AI'}
           </Typography>
           <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 4 }}>
-            Подобрано специально для вас на основе ваших предпочтений
+            {user ? 'Подобрано специально для вас на основе ваших предпочтений' : 'Популярные предложения на рынке недвижимости'}
           </Typography>
           <FeaturedProperties />
         </Container>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import GuestRoute from '@/components/auth/GuestRoute'
 import {
     Container,
     Paper,
@@ -14,9 +15,8 @@ import {
     IconButton,
     Checkbox,
     FormControlLabel,
-    Stepper,
-    Step,
-    StepLabel
+    Divider,
+    CircularProgress
 } from '@mui/material'
 import {
     Visibility,
@@ -26,59 +26,101 @@ import {
     Phone,
     Lock
 } from '@mui/icons-material'
-import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import NextLink from 'next/link'
 
 export default function RegisterPage() {
-    const { register } = useAuth()
-    const router = useRouter()
-    const [activeStep, setActiveStep] = useState(0)
     const [showPassword, setShowPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const [formData, setFormData] = useState({
-        full_name: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '',
-        agreeToTerms: false
-    })
+    const [agreeToTerms, setAgreeToTerms] = useState(false)
+    const router = useRouter()
 
-    const steps = ['Личные данные', 'Контакты', 'Пароль']
-
-    const handleNext = () => {
-        setActiveStep((prev) => prev + 1)
-    }
-
-    const handleBack = () => {
-        setActiveStep((prev) => prev - 1)
-    }
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
+        setError('')
 
-        if (formData.password !== formData.confirmPassword) {
-            setError('Пароли не совпадают')
-            return
-        }
-
-        if (!formData.agreeToTerms) {
+        if (!agreeToTerms) {
             setError('Необходимо принять условия использования')
             return
         }
 
         setLoading(true)
-        setError('')
+
+        // Получаем данные прямо из формы - это работает!
+        const formData = new FormData(e.currentTarget)
+        const email = formData.get('email') as string
+        const password = formData.get('password') as string
+        const confirmPassword = formData.get('confirmPassword') as string
+        const full_name = formData.get('full_name') as string
+        const phone = formData.get('phone') as string
+
+        // Проверка паролей
+        if (password !== confirmPassword) {
+            setError('Пароли не совпадают')
+            setLoading(false)
+            return
+        }
+
+        if (password.length < 6) {
+            setError('Пароль должен быть не менее 6 символов')
+            setLoading(false)
+            return
+        }
 
         try {
-            await register({
-                email: formData.email,
-                password: formData.password,
-                full_name: formData.full_name,
-                phone: formData.phone
+            // Регистрация
+            const registerResponse = await fetch('http://localhost:8080/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    email,
+                    password,
+                    full_name,
+                    phone: phone || ''
+                })
             })
+
+            if (!registerResponse.ok) {
+                const errorText = await registerResponse.text()
+                let errorMessage = 'Ошибка регистрации'
+                try {
+                    const errorData = JSON.parse(errorText)
+                    errorMessage = errorData.detail || errorData.message || errorMessage
+                } catch {
+                    // Используем дефолтное сообщение
+                }
+                throw new Error(errorMessage)
+            }
+
+            // Автоматический вход после регистрации
+            const loginResponse = await fetch('http://localhost:8080/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            })
+
+            if (!loginResponse.ok) {
+                // Если логин не удался, перенаправляем на страницу входа
+                router.push('/auth/login')
+                return
+            }
+
+            const data = await loginResponse.json()
+
+            // Сохраняем токены
+            localStorage.setItem('access_token', data.access_token)
+            localStorage.setItem('refresh_token', data.refresh_token)
+            localStorage.setItem('user', JSON.stringify(data.user))
+
+            // Редирект
             router.push('/dashboard')
         } catch (err: any) {
             setError(err.message || 'Ошибка регистрации')
@@ -87,118 +129,10 @@ export default function RegisterPage() {
         }
     }
 
-    const renderStepContent = () => {
-        switch (activeStep) {
-            case 0:
-                return (
-                    <TextField
-                        fullWidth
-                        label="Полное имя"
-                        value={formData.full_name}
-                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                        required
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <Person />
-                                </InputAdornment>
-                            )
-                        }}
-                    />
-                )
-            case 1:
-                return (
-                    <>
-                        <TextField
-                            fullWidth
-                            label="Email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                            sx={{ mb: 2 }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <Email />
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
-                        <TextField
-                            fullWidth
-                            label="Телефон"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <Phone />
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
-                    </>
-                )
-            case 2:
-                return (
-                    <>
-                        <TextField
-                            fullWidth
-                            label="Пароль"
-                            type={showPassword ? 'text' : 'password'}
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                            sx={{ mb: 2 }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <Lock />
-                                    </InputAdornment>
-                                ),
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton onClick={() => setShowPassword(!showPassword)}>
-                                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
-                        <TextField
-                            fullWidth
-                            label="Подтвердите пароль"
-                            type={showPassword ? 'text' : 'password'}
-                            value={formData.confirmPassword}
-                            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                            required
-                            sx={{ mb: 2 }}
-                        />
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    checked={formData.agreeToTerms}
-                                    onChange={(e) => setFormData({ ...formData, agreeToTerms: e.target.checked })}
-                                />
-                            }
-                            label={
-                                <Typography variant="body2">
-                                    Я согласен с{' '}
-                                    <Link href="/terms">условиями использования</Link>
-                                </Typography>
-                            }
-                        />
-                    </>
-                )
-            default:
-                return null
-        }
-    }
-
     return (
-        <Container maxWidth="sm" sx={{ py: 8 }}>
-            <Paper sx={{ p: 4 }}>
+        <GuestRoute>
+            <Container maxWidth="sm" sx={{ py: 8 }}>
+            <Paper elevation={3} sx={{ p: 4 }}>
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
                     <Typography variant="h4" fontWeight="bold" gutterBottom>
                         Регистрация
@@ -208,61 +142,177 @@ export default function RegisterPage() {
                     </Typography>
                 </Box>
 
-                <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-                    {steps.map((label) => (
-                        <Step key={label}>
-                            <StepLabel>{label}</StepLabel>
-                        </Step>
-                    ))}
-                </Stepper>
-
                 {error && (
-                    <Alert severity="error" sx={{ mb: 3 }}>
+                    <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
                         {error}
                     </Alert>
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    <Box sx={{ mb: 3 }}>
-                        {renderStepContent()}
-                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                        {/* Личные данные */}
+                        <TextField
+                            fullWidth
+                            label="Полное имя"
+                            name="full_name"
+                            type="text"
+                            required
+                            autoFocus
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Person color="action" />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        {/* Контактные данные */}
+                        <TextField
+                            fullWidth
+                            label="Email"
+                            name="email"
+                            type="email"
+                            required
+                            autoComplete="email"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Email color="action" />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Телефон"
+                            name="phone"
+                            type="tel"
+                            placeholder="+77001234567"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Phone color="action" />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        <Divider sx={{ my: 1 }} />
+
+                        {/* Пароли */}
+                        <TextField
+                            fullWidth
+                            label="Пароль"
+                            name="password"
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            autoComplete="new-password"
+                            helperText="Минимум 6 символов"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock color="action" />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            edge="end"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                        >
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Подтвердите пароль"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            required
+                            autoComplete="new-password"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock color="action" />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            edge="end"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                        >
+                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        {/* Условия использования */}
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={agreeToTerms}
+                                    onChange={(e) => setAgreeToTerms(e.target.checked)}
+                                    color="primary"
+                                />
+                            }
+                            label={
+                                <Typography variant="body2">
+                                    Я согласен с{' '}
+                                    <Link
+                                        component={NextLink}
+                                        href="/terms"
+                                        sx={{ textDecoration: 'none' }}
+                                    >
+                                        условиями использования
+                                    </Link>
+                                </Typography>
+                            }
+                        />
+
+                        {/* Кнопка отправки */}
                         <Button
-                            disabled={activeStep === 0}
-                            onClick={handleBack}
+                            type="submit"
+                            variant="contained"
+                            size="large"
+                            fullWidth
+                            disabled={loading || !agreeToTerms}
+                            sx={{ mt: 2, py: 1.5 }}
                         >
-                            Назад
+                            {loading ? (
+                                <CircularProgress size={24} color="inherit" />
+                            ) : (
+                                'Зарегистрироваться'
+                            )}
                         </Button>
-
-                        {activeStep === steps.length - 1 ? (
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                disabled={loading}
-                            >
-                                {loading ? 'Регистрация...' : 'Зарегистрироваться'}
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="contained"
-                                onClick={handleNext}
-                            >
-                                Далее
-                            </Button>
-                        )}
                     </Box>
                 </form>
 
                 <Box sx={{ textAlign: 'center', mt: 3 }}>
-                    <Typography variant="body2">
+                    <Typography variant="body2" color="text.secondary">
                         Уже есть аккаунт?{' '}
-                        <Link component={NextLink} href="/auth/login" fontWeight="600">
+                        <Link
+                            component={NextLink}
+                            href="/auth/login"
+                            fontWeight="600"
+                            sx={{ textDecoration: 'none' }}
+                        >
                             Войти
                         </Link>
                     </Typography>
                 </Box>
             </Paper>
         </Container>
+        </GuestRoute>
     )
 }

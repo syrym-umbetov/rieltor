@@ -23,7 +23,8 @@ import {
     BottomNavigationAction,
     Paper,
     Badge,
-    Divider
+    Divider,
+    CircularProgress
 } from '@mui/material'
 import {
     Menu as MenuIcon,
@@ -37,12 +38,14 @@ import {
     Logout,
     Dashboard,
     Campaign,
-    Analytics
+    Analytics,
+    Vrpano
 } from '@mui/icons-material'
 import { useRouter, usePathname } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
+
 import Link from 'next/link'
 import Logo from '@/components/common/Logo'
+import {useAuth} from "@/hooks/useAuth";
 
 interface MainLayoutProps {
     children: React.ReactNode
@@ -53,7 +56,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     const isMobile = useMediaQuery(theme.breakpoints.down('md'))
     const router = useRouter()
     const pathname = usePathname()
-    const { user, logout } = useAuth()
+    const { user, logout, loading } = useAuth()
 
     const [mobileOpen, setMobileOpen] = useState(false)
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
@@ -79,6 +82,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     const navigationItems = [
         { title: 'Главная', icon: <Home />, path: '/' },
         { title: 'Поиск', icon: <Search />, path: '/properties' },
+        { title: 'VR Туры', icon: <Vrpano />, path: '/vr-tours' },
         { title: 'AI Чат', icon: <SmartToy />, path: '/chat' },
         { title: 'Услуги', icon: <Star />, path: '/services' },
         { title: 'Профиль', icon: <Person />, path: '/profile' }
@@ -128,6 +132,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
                                 <ListItemText primary="Аналитика" />
                             </ListItemButton>
                         </ListItem>
+                        <ListItem disablePadding>
+                            <ListItemButton onClick={() => router.push('/vr-tours')}>
+                                <ListItemIcon><Vrpano /></ListItemIcon>
+                                <ListItemText primary="VR Туры" />
+                            </ListItemButton>
+                        </ListItem>
                     </List>
                 </>
             )}
@@ -154,7 +164,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
                     {!isMobile && (
                         <Box sx={{ display: 'flex', gap: 2, mr: 3 }}>
-                            {navigationItems.slice(0, 4).map((item) => (
+                            {navigationItems.slice(0, 5).map((item) => (
                                 <Button
                                     key={item.title}
                                     color="inherit"
@@ -176,7 +186,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
                         </Badge>
                     </IconButton>
 
-                    {user ? (
+                    {loading ? (
+                        <CircularProgress size={24} color="inherit" sx={{ ml: 2 }} />
+                    ) : user ? (
                         <>
                             <IconButton onClick={handleProfileMenuOpen} sx={{ p: 0 }}>
                                 <Avatar alt={user.full_name} src={user.avatar_url}>

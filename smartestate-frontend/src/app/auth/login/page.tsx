@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import GuestRoute from '@/components/auth/GuestRoute'
+import { useAuth } from '@/hooks/useAuth'
 import {
     Container,
     Paper,
@@ -9,40 +11,41 @@ import {
     Typography,
     Box,
     Link,
-    Divider,
     Alert,
     InputAdornment,
-    IconButton
+    IconButton,
+    CircularProgress
 } from '@mui/material'
 import {
     Visibility,
     VisibilityOff,
-    Google,
-    Facebook
+    Email,
+    Lock
 } from '@mui/icons-material'
-import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import NextLink from 'next/link'
 
 export default function LoginPage() {
-    const { login } = useAuth()
-    const router = useRouter()
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const [formData, setFormData] = useState({
-        email: '',
-        password: ''
-    })
+    const router = useRouter()
+    const { login } = useAuth()
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        setLoading(true)
         setError('')
+        setLoading(true)
+
+        // Получаем данные прямо из формы
+        const formData = new FormData(e.currentTarget)
+        const email = formData.get('email') as string
+        const password = formData.get('password') as string
 
         try {
-            await login(formData.email, formData.password)
-            router.push('/dashboard')
+            // Используем функцию login из AuthProvider
+            await login(email, password)
+            // После успешной авторизации GuestRoute автоматически перенаправит на главную
         } catch (err: any) {
             setError(err.message || 'Ошибка входа')
         } finally {
@@ -51,100 +54,113 @@ export default function LoginPage() {
     }
 
     return (
-        <Container maxWidth="sm" sx={{ py: 8 }}>
-            <Paper sx={{ p: 4 }}>
+        <GuestRoute>
+            <Container maxWidth="sm" sx={{ py: 8 }}>
+            <Paper elevation={3} sx={{ p: 4 }}>
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
                     <Typography variant="h4" fontWeight="bold" gutterBottom>
-                        Вход в SmartEstate
+                        Вход
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Введите ваши данные для входа
+                        Войдите в свой аккаунт SmartEstate
                     </Typography>
                 </Box>
 
                 {error && (
-                    <Alert severity="error" sx={{ mb: 3 }}>
+                    <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
                         {error}
                     </Alert>
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    <TextField
-                        fullWidth
-                        label="Email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        required
-                        sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                        <TextField
+                            fullWidth
+                            label="Email"
+                            name="email"
+                            type="email"
+                            required
+                            autoComplete="email"
+                            autoFocus
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Email color="action" />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
 
-                    <TextField
-                        fullWidth
-                        label="Пароль"
-                        type={showPassword ? 'text' : 'password'}
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                        sx={{ mb: 3 }}
-                        InputProps={{
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <IconButton onClick={() => setShowPassword(!showPassword)}>
-                                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                                    </IconButton>
-                                </InputAdornment>
-                            )
-                        }}
-                    />
+                        <TextField
+                            fullWidth
+                            label="Пароль"
+                            name="password"
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            autoComplete="current-password"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock color="action" />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            edge="end"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                        >
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                        <Link component={NextLink} href="/auth/forgot-password" variant="body2">
-                            Забыли пароль?
-                        </Link>
-                    </Box>
-
-                    <Button
-                        type="submit"
-                        fullWidth
-                        variant="contained"
-                        size="large"
-                        disabled={loading}
-                        sx={{ mb: 2 }}
-                    >
-                        {loading ? 'Вход...' : 'Войти'}
-                    </Button>
-
-                    <Divider sx={{ my: 3 }}>ИЛИ</Divider>
-
-                    <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Google />}
-                        sx={{ mb: 2 }}
-                    >
-                        Войти через Google
-                    </Button>
-
-                    <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Facebook />}
-                        sx={{ mb: 3 }}
-                    >
-                        Войти через Facebook
-                    </Button>
-
-                    <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="body2">
-                            Нет аккаунта?{' '}
-                            <Link component={NextLink} href="/auth/register" fontWeight="600">
-                                Зарегистрироваться
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Link
+                                component={NextLink}
+                                href="/auth/forgot-password"
+                                variant="body2"
+                                sx={{ textDecoration: 'none' }}
+                            >
+                                Забыли пароль?
                             </Link>
-                        </Typography>
+                        </Box>
+
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            size="large"
+                            fullWidth
+                            disabled={loading}
+                            sx={{ mt: 2, py: 1.5 }}
+                        >
+                            {loading ? (
+                                <CircularProgress size={24} color="inherit" />
+                            ) : (
+                                'Войти'
+                            )}
+                        </Button>
                     </Box>
                 </form>
+
+                <Box sx={{ textAlign: 'center', mt: 3 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Нет аккаунта?{' '}
+                        <Link
+                            component={NextLink}
+                            href="/auth/register"
+                            fontWeight="600"
+                            sx={{ textDecoration: 'none' }}
+                        >
+                            Зарегистрироваться
+                        </Link>
+                    </Typography>
+                </Box>
             </Paper>
         </Container>
+        </GuestRoute>
     )
 }

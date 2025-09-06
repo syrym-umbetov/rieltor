@@ -1,8 +1,9 @@
 'use client'
 
-import { Box, Container, Typography, Button, Chip, Grid, useTheme, useMediaQuery } from '@mui/material'
+import { Box, Container, Typography, Button, Chip, Grid, useTheme, useMediaQuery, Skeleton } from '@mui/material'
 import { motion } from 'framer-motion'
 import { SmartToy, TrendingUp, Verified } from '@mui/icons-material'
+import { useAuth } from '@/hooks/useAuth'
 
 interface HeroSectionProps {
     onStartChat: () => void
@@ -11,6 +12,7 @@ interface HeroSectionProps {
 export default function HeroSection({ onStartChat }: HeroSectionProps) {
     const theme = useTheme()
     const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+    const { user, loading } = useAuth()
 
     return (
         <Box
@@ -42,29 +44,47 @@ export default function HeroSection({ onStartChat }: HeroSectionProps) {
                                 }}
                             />
 
-                            <Typography
-                                variant="h1"
-                                sx={{
-                                    fontSize: { xs: '2rem', md: '3.5rem' },
-                                    fontWeight: 800,
-                                    mb: 2,
-                                    lineHeight: 1.1
-                                }}
-                            >
-                                Найдем идеальную недвижимость за 3 минуты
-                            </Typography>
+                            {loading ? (
+                                <Skeleton 
+                                    variant="text" 
+                                    width="80%" 
+                                    height={80}
+                                    sx={{ fontSize: { xs: '2rem', md: '3.5rem' }, mb: 2 }}
+                                />
+                            ) : (
+                                <Typography
+                                    variant="h1"
+                                    sx={{
+                                        fontSize: { xs: '2rem', md: '3.5rem' },
+                                        fontWeight: 800,
+                                        mb: 2,
+                                        lineHeight: 1.1
+                                    }}
+                                >
+                                    {user ? `Привет, ${user.full_name?.split(' ')[0]}!` : 'Найдем идеальную недвижимость за 3 минуты'}
+                                </Typography>
+                            )}
 
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    mb: 4,
-                                    opacity: 0.9,
-                                    fontWeight: 400,
-                                    fontSize: { xs: '1rem', md: '1.25rem' }
-                                }}
-                            >
-                                AI анализирует 500,000+ объявлений со всех площадок Казахстана
-                            </Typography>
+                            {loading ? (
+                                <Skeleton 
+                                    variant="text" 
+                                    width="70%" 
+                                    height={40}
+                                    sx={{ mb: 4 }}
+                                />
+                            ) : (
+                                <Typography
+                                    variant="h6"
+                                    sx={{
+                                        mb: 4,
+                                        opacity: 0.9,
+                                        fontWeight: 400,
+                                        fontSize: { xs: '1rem', md: '1.25rem' }
+                                    }}
+                                >
+                                    {user ? 'Готов помочь найти идеальную недвижимость специально для вас' : 'AI анализирует 500,000+ объявлений со всех площадок Казахстана'}
+                                </Typography>
+                            )}
 
                             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                                 <Button
@@ -86,24 +106,6 @@ export default function HeroSection({ onStartChat }: HeroSectionProps) {
                                     }}
                                 >
                                     Начать с AI
-                                </Button>
-
-                                <Button
-                                    variant="outlined"
-                                    size="large"
-                                    sx={{
-                                        color: 'white',
-                                        borderColor: 'rgba(255,255,255,0.5)',
-                                        px: 4,
-                                        py: 1.5,
-                                        fontSize: '1.1rem',
-                                        '&:hover': {
-                                            borderColor: 'white',
-                                            bgcolor: 'rgba(255,255,255,0.1)'
-                                        }
-                                    }}
-                                >
-                                    Смотреть каталог
                                 </Button>
                             </Box>
                         </motion.div>

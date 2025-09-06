@@ -2,7 +2,8 @@
 
 import { createContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 
 interface User {
     id: string
@@ -12,6 +13,8 @@ interface User {
     phone?: string
     role: string
     subscription_tier: string
+    created_at: string
+    updated_at: string
 }
 
 interface AuthContextType {
@@ -44,86 +47,169 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
         try {
             const token = localStorage.getItem('access_token')
-            if (!token) {
-                setLoading(false)
-                return
-            }
+            const savedUser = localStorage.getItem('user')
 
-            const response = await axios.get('/api/auth/profile', {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            setUser(response.data)
+            if (token && savedUser) {
+                // Сначала загружаем сохраненного пользователя для быстрого отображения
+                try {
+                    const userData = JSON.parse(savedUser)
+                    setUser(userData)
+                } catch (e) {
+                    console.error('Error parsing saved user:', e)
+                }
+
+                // Затем проверяем токен на сервере
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                })
+
+                if (response.ok) {
+                    const userData = await response.json()
+                    setUser(userData)
+                    localStorage.setItem('user', JSON.stringify(userData))
+                } else if (response.status === 401) {
+                    // Токен истек
+                    localStorage.removeItem('access_token')
+                    localStorage.removeItem('refresh_token')
+                    localStorage.removeItem('user')
+                    setUser(null)
+                }
+            }
         } catch (error) {
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
+            console.error('Auth check error:', error)
         } finally {
             setLoading(false)
         }
     }
 
     const login = async (email: string, password: string) => {
-        try {
-            const response = await axios.post('/api/auth/login', { email, password })
-            const { access_token, refresh_token, user } = response.data
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        })
 
-            localStorage.setItem('access_token', access_token)
-            localStorage.setItem('refresh_token', refresh_token)
-
-            setUser(user)
-            router.push('/dashboard')
-        } catch (error) {
-            throw new Error('Неверный email или пароль')
+        if (!response.ok) {
+            const errorText = await response.text()
+            let errorMessage = 'Неверный email или пароль'
+            try {
+                const errorData = JSON.parse(errorText)
+                errorMessage = errorData.detail || errorData.message || errorMessage
+            } catch {
+                errorMessage = errorText || errorMessage
+            }
+            throw new Error(errorMessage)
         }
+
+        const data = await response.json()
+
+        // Сохраняем токены и пользователя
+        localStorage.setItem('access_token', data.access_token)
+        localStorage.setItem('refresh_token', data.refresh_token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+
+        setUser(data.user)
+        
+        // Теперь делаем редирект после установки состояния
+        router.push('/')
     }
 
     const register = async (data: RegisterData) => {
-        try {
-            const response = await axios.post('/api/auth/register', data)
-            const { access_token, refresh_token, user } = response.data
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                email: data.email,
+                full_name: data.full_name,
+                password: data.password,
+                phone: data.phone || ''
+            })
+        })
 
-            localStorage.setItem('access_token', access_token)
-            localStorage.setItem('refresh_token', refresh_token)
-
-            setUser(user)
-            router.push('/dashboard')
-        } catch (error) {
-            throw new Error('Ошибка регистрации')
+        if (!response.ok) {
+            const errorText = await response.text()
+            let errorMessage = 'Ошибка регистрации'
+            try {
+                const errorData = JSON.parse(errorText)
+                errorMessage = errorData.detail || errorData.message || errorMessage
+            } catch {
+                errorMessage = errorText || errorMessage
+            }
+            throw new Error(errorMessage)
         }
+
+        // После успешной регистрации автоматически логинимся
+        await login(data.email, data.password)
     }
 
     const logout = async () => {
         try {
             const token = localStorage.getItem('access_token')
             if (token) {
-                await axios.post('/api/auth/logout', {}, {
-                    headers: { Authorization: `Bearer ${token}` }
+                // Отправляем запрос на сервер для логаута
+                const response = await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
                 })
+                
+                // Логируем результат, но не блокируем logout при ошибке сервера
+                if (response.ok) {
+                    console.log('Logout successful on server')
+                } else {
+                    console.warn('Server logout failed, but continuing with local logout')
+                }
             }
         } catch (error) {
             console.error('Logout error:', error)
+            // Продолжаем локальный logout даже при ошибке сервера
         } finally {
+            // Всегда очищаем локальные данные
             localStorage.removeItem('access_token')
             localStorage.removeItem('refresh_token')
+            localStorage.removeItem('user')
             setUser(null)
             router.push('/')
         }
     }
 
     const updateProfile = async (data: Partial<User>) => {
-        try {
-            const token = localStorage.getItem('access_token')
-            const response = await axios.put('/api/auth/profile', data, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            setUser(response.data)
-        } catch (error) {
+        const token = localStorage.getItem('access_token')
+        if (!token) throw new Error('Не авторизован')
+
+        const response = await fetch(`${API_URL}/auth/profile`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+
+        if (!response.ok) {
             throw new Error('Ошибка обновления профиля')
         }
+
+        const updatedUser = await response.json()
+        setUser(updatedUser)
+        localStorage.setItem('user', JSON.stringify(updatedUser))
     }
 
     return (
         <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
             {children}
         </AuthContext.Provider>
-)
+    )
 }

@@ -1,9 +1,24 @@
-import {NextRequest, NextResponse} from "next/server";
+// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
+    // Убираем проверку авторизации из middleware, так как токен хранится в localStorage
+    // Проверка авторизации будет происходить на уровне компонентов через AuthProvider
+    return NextResponse.next()
+}
 
-    const token = request.cookies.get('token')
-    if (!token && request.nextUrl.pathname.startsWith('/dashboard')) {
-        return NextResponse.redirect(new URL('/auth/login', request.url))
-    }
+// Конфигурация путей для middleware
+export const config = {
+    matcher: [
+        /*
+         * Match all request paths except for the ones starting with:
+         * - api (API routes)
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         * - public (public files)
+         */
+        '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    ],
 }

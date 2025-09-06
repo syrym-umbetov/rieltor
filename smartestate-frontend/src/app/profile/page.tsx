@@ -1,289 +1,375 @@
+// app/profile/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
     Container,
-    Grid,
     Paper,
-    Typography,
     Box,
+    Typography,
     Avatar,
     Button,
     TextField,
-    Tab,
-    Tabs,
+    Alert,
+    CircularProgress,
+    Grid,
+    Divider,
     List,
     ListItem,
     ListItemIcon,
-    ListItemText,
-    ListItemSecondaryAction,
-    IconButton,
-    Card,
-    CardContent,
-    Chip,
-    Switch,
-    Divider
+    ListItemText
 } from '@mui/material'
 import {
     Edit,
     Save,
     Cancel,
-    Home,
-    Favorite,
-    History,
-    Settings,
-    Payment,
-    Notifications,
-    Security,
-    Delete,
-    ChevronRight
+    Email,
+    Phone,
+    Person,
+    CalendarToday,
+    Logout
 } from '@mui/icons-material'
-import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
+import MainLayout from '@/components/layout/MainLayout'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 
 export default function ProfilePage() {
-    const { user, updateProfile } = useAuth()
-    const [activeTab, setActiveTab] = useState(0)
-    const [isEditing, setIsEditing] = useState(false)
-    const [profileData, setProfileData] = useState({
-        full_name: user?.full_name || '',
-        email: user?.email || '',
-        phone: user?.phone || ''
+    const router = useRouter()
+    const [profile, setProfile] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [editMode, setEditMode] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
+    const [success, setSuccess] = useState('')
+    const [editData, setEditData] = useState({
+        full_name: '',
+        phone: ''
     })
 
-    const handleSave = async () => {
-        await updateProfile(profileData)
-        setIsEditing(false)
+    useEffect(() => {
+        loadProfile()
+    }, [])
+
+    const loadProfile = async () => {
+        try {
+            const token = localStorage.getItem('access_token')
+
+            if (!token) {
+                router.push('/auth/login')
+                return
+            }
+
+            // Пробуем загрузить из localStorage сначала для быстрого отображения
+            const savedUser = localStorage.getItem('user')
+            if (savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser)
+                    setProfile(userData)
+                    setEditData({
+                        full_name: userData.full_name,
+                        phone: userData.phone
+                    })
+                } catch (e) {
+                    console.error('Error parsing saved user:', e)
+                }
+            }
+
+            // Затем загружаем актуальные данные с сервера
+            const response = await fetch(`${API_URL}/auth/profile`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            })
+
+            if (response.status === 401) {
+                // Токен истек
+                localStorage.removeItem('access_token')
+                localStorage.removeItem('refresh_token')
+                localStorage.removeItem('user')
+                router.push('/auth/login')
+                return
+            }
+
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки профиля')
+            }
+
+            const data = await response.json()
+            setProfile(data)
+            setEditData({
+                full_name: data.full_name,
+                phone: data.phone
+            })
+        } catch (err: any) {
+            console.error('Profile load error:', err)
+            setError(err.message || 'Ошибка загрузки профиля')
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const stats = [
-        { label: 'Просмотров', value: 156 },
-        { label: 'Избранное', value: 23 },
-        { label: 'Объявлений', value: 5 },
-        { label: 'Заявок', value: 12 }
-    ]
+    const handleSave = async () => {
+        setSaving(true)
+        setError('')
+        setSuccess('')
+
+        try {
+            const token = localStorage.getItem('access_token')
+
+            if (!token) {
+                router.push('/auth/login')
+                return
+            }
+
+            const response = await fetch(`${API_URL}/auth/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    full_name: editData.full_name,
+                    phone: editData.phone
+                })
+            })
+
+            if (response.status === 401) {
+                router.push('/auth/login')
+                return
+            }
+
+            if (!response.ok) {
+                throw new Error('Ошибка обновления профиля')
+            }
+
+            const updatedProfile = await response.json()
+            setProfile(updatedProfile)
+            localStorage.setItem('user', JSON.stringify(updatedProfile))
+            setEditMode(false)
+            setSuccess('Профиль успешно обновлен')
+        } catch (err: any) {
+            setError(err.message || 'Ошибка обновления профиля')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleLogout = () => {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user')
+        router.push('/')
+    }
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('ru-RU', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })
+    }
+
+    if (loading) {
+        return (
+            <ProtectedRoute>
+                <Container maxWidth="md" sx={{ py: 4 }}>
+                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+                        <CircularProgress />
+                    </Box>
+                </Container>
+            </ProtectedRoute>
+        )
+    }
+
+    if (!profile) {
+        return (
+            <ProtectedRoute>
+                <Container maxWidth="md" sx={{ py: 4 }}>
+                    <Alert severity="error">
+                        Не удалось загрузить профиль.
+                        <Button size="small" onClick={loadProfile}>Попробовать снова</Button>
+                    </Alert>
+                </Container>
+            </ProtectedRoute>
+        )
+    }
 
     return (
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-            {/* Profile Header */}
-            <Paper sx={{ p: 4, mb: 3 }}>
-                <Grid container spacing={3} alignItems="center">
-                    <Grid item>
-                        <Avatar
-                            src={user?.avatar_url}
-                            sx={{ width: 100, height: 100, fontSize: '2rem' }}
-                        >
-                            {user?.full_name?.[0]}
-                        </Avatar>
-                    </Grid>
+        <ProtectedRoute>
+            <Container maxWidth="lg" sx={{ py: 4 }}>
+                <Typography variant="h4" gutterBottom>
+                    Профиль
+                </Typography>
 
-                    <Grid item xs>
-                        {isEditing ? (
-                            <Box>
-                                <TextField
-                                    fullWidth
-                                    label="Полное имя"
-                                    value={profileData.full_name}
-                                    onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
-                                    sx={{ mb: 2 }}
-                                />
-                                <TextField
-                                    fullWidth
-                                    label="Email"
-                                    value={profileData.email}
-                                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                                    sx={{ mb: 2 }}
-                                />
-                                <TextField
-                                    fullWidth
-                                    label="Телефон"
-                                    value={profileData.phone}
-                                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                                />
-                            </Box>
-                        ) : (
-                            <Box>
-                                <Typography variant="h4" fontWeight="bold">
-                                    {user?.full_name || 'Пользователь'}
-                                </Typography>
-                                <Typography variant="body1" color="text.secondary">
-                                    {user?.email}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {user?.phone}
-                                </Typography>
-                                <Chip
-                                    label={user?.subscription_tier === 'premium' ? 'Premium' : 'Бесплатный'}
-                                    color={user?.subscription_tier === 'premium' ? 'primary' : 'default'}
-                                    size="small"
-                                    sx={{ mt: 1 }}
-                                />
-                            </Box>
-                        )}
-                    </Grid>
+                {success && (
+                    <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+                        {success}
+                    </Alert>
+                )}
 
-                    <Grid item>
-                        {isEditing ? (
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<Save />}
-                                    onClick={handleSave}
-                                >
-                                    Сохранить
-                                </Button>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<Cancel />}
-                                    onClick={() => setIsEditing(false)}
-                                >
-                                    Отмена
-                                </Button>
-                            </Box>
-                        ) : (
+                {error && (
+                    <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                        {error}
+                    </Alert>
+                )}
+
+                <Grid container spacing={3}>
+                    {/* Левая колонка - Аватар и основная информация */}
+                    <Grid item xs={12} md={4}>
+                        <Paper sx={{ p: 3, textAlign: 'center' }}>
+                            <Avatar
+                                src={profile.avatar_url}
+                                sx={{ width: 100, height: 100, mx: 'auto', mb: 2 }}
+                            >
+                                {profile.full_name?.[0]?.toUpperCase()}
+                            </Avatar>
+
+                            <Typography variant="h6" gutterBottom>
+                                {profile.full_name}
+                            </Typography>
+
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                {profile.email}
+                            </Typography>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            <List dense>
+                                <ListItem>
+                                    <ListItemIcon>
+                                        <CalendarToday fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                        primary="Дата регистрации"
+                                        secondary={formatDate(profile.created_at)}
+                                    />
+                                </ListItem>
+                            </List>
+
                             <Button
                                 variant="outlined"
-                                startIcon={<Edit />}
-                                onClick={() => setIsEditing(true)}
+                                color="error"
+                                fullWidth
+                                startIcon={<Logout />}
+                                onClick={handleLogout}
+                                sx={{ mt: 2 }}
                             >
-                                Редактировать
+                                Выйти
                             </Button>
-                        )}
+                        </Paper>
+                    </Grid>
+
+                    {/* Правая колонка - Редактируемая информация */}
+                    <Grid item xs={12} md={8}>
+                        <Paper sx={{ p: 3 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                                <Typography variant="h6">Личная информация</Typography>
+                                {!editMode ? (
+                                    <Button
+                                        startIcon={<Edit />}
+                                        onClick={() => setEditMode(true)}
+                                        variant="outlined"
+                                        size="small"
+                                    >
+                                        Редактировать
+                                    </Button>
+                                ) : (
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <Button
+                                            startIcon={<Cancel />}
+                                            onClick={() => {
+                                                setEditMode(false)
+                                                setEditData({
+                                                    full_name: profile.full_name,
+                                                    phone: profile.phone
+                                                })
+                                            }}
+                                            size="small"
+                                        >
+                                            Отмена
+                                        </Button>
+                                        <Button
+                                            startIcon={<Save />}
+                                            onClick={handleSave}
+                                            variant="contained"
+                                            size="small"
+                                            disabled={saving}
+                                        >
+                                            {saving ? 'Сохранение...' : 'Сохранить'}
+                                        </Button>
+                                    </Box>
+                                )}
+                            </Box>
+
+                            <Grid container spacing={3}>
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Полное имя"
+                                        value={editMode ? editData.full_name : profile.full_name}
+                                        onChange={(e) => setEditData({ ...editData, full_name: e.target.value })}
+                                        disabled={!editMode}
+                                        InputProps={{
+                                            startAdornment: <Person sx={{ mr: 1, color: 'action.active' }} />
+                                        }}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Email"
+                                        value={profile.email}
+                                        disabled
+                                        helperText="Email нельзя изменить"
+                                        InputProps={{
+                                            startAdornment: <Email sx={{ mr: 1, color: 'action.active' }} />
+                                        }}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Телефон"
+                                        value={editMode ? editData.phone : profile.phone}
+                                        onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                                        disabled={!editMode}
+                                        placeholder="+7 (xxx) xxx-xx-xx"
+                                        InputProps={{
+                                            startAdornment: <Phone sx={{ mr: 1, color: 'action.active' }} />
+                                        }}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} sm={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Роль"
+                                        value={profile.role === 'admin' ? 'Администратор' : 'Пользователь'}
+                                        disabled
+                                        helperText="Роль назначается администратором"
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} sm={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Подписка"
+                                        value={profile.subscription_tier === 'free' ? 'Бесплатная' : profile.subscription_tier}
+                                        disabled
+                                        helperText="Для изменения подписки обратитесь к администратору"
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Paper>
                     </Grid>
                 </Grid>
-            </Paper>
-
-            {/* Stats */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                {stats.map((stat) => (
-                    <Grid item xs={6} md={3} key={stat.label}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography variant="h4" color="primary" fontWeight="bold">
-                                    {stat.value}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {stat.label}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                ))}
-            </Grid>
-
-            {/* Tabs */}
-            <Paper>
-                <Tabs
-                    value={activeTab}
-                    onChange={(_, value) => setActiveTab(value)}
-                    sx={{ borderBottom: 1, borderColor: 'divider' }}
-                >
-                    <Tab label="Мои объявления" />
-                    <Tab label="Избранное" />
-                    <Tab label="История" />
-                    <Tab label="Настройки" />
-                </Tabs>
-
-                <Box sx={{ p: 3 }}>
-                    {activeTab === 0 && (
-                        <List>
-                            <ListItem>
-                                <ListItemIcon>
-                                    <Home />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="3-комнатная квартира"
-                                    secondary="Алматы, Медеу • 45 000 000 ₸"
-                                />
-                                <ListItemSecondaryAction>
-                                    <IconButton>
-                                        <ChevronRight />
-                                    </IconButton>
-                                </ListItemSecondaryAction>
-                            </ListItem>
-                        </List>
-                    )}
-
-                    {activeTab === 1 && (
-                        <List>
-                            <ListItem>
-                                <ListItemIcon>
-                                    <Favorite color="error" />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="2-комнатная квартира"
-                                    secondary="Астана, Есиль • 32 000 000 ₸"
-                                />
-                                <ListItemSecondaryAction>
-                                    <IconButton>
-                                        <Delete />
-                                    </IconButton>
-                                </ListItemSecondaryAction>
-                            </ListItem>
-                        </List>
-                    )}
-
-                    {activeTab === 2 && (
-                        <List>
-                            <ListItem>
-                                <ListItemIcon>
-                                    <History />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="Просмотр квартиры"
-                                    secondary="15.01.2024 • ул. Абая, 150"
-                                />
-                            </ListItem>
-                        </List>
-                    )}
-
-                    {activeTab === 3 && (
-                        <List>
-                            <ListItem>
-                                <ListItemIcon>
-                                    <Notifications />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="Уведомления"
-                                    secondary="Получать новости и предложения"
-                                />
-                                <ListItemSecondaryAction>
-                                    <Switch defaultChecked />
-                                </ListItemSecondaryAction>
-                            </ListItem>
-                            <Divider />
-                            <ListItem>
-                                <ListItemIcon>
-                                    <Security />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="Безопасность"
-                                    secondary="Изменить пароль"
-                                />
-                                <ListItemSecondaryAction>
-                                    <IconButton>
-                                        <ChevronRight />
-                                    </IconButton>
-                                </ListItemSecondaryAction>
-                            </ListItem>
-                            <Divider />
-                            <ListItem>
-                                <ListItemIcon>
-                                    <Payment />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="Подписка"
-                                    secondary="Управление тарифным планом"
-                                />
-                                <ListItemSecondaryAction>
-                                    <IconButton>
-                                        <ChevronRight />
-                                    </IconButton>
-                                </ListItemSecondaryAction>
-                            </ListItem>
-                        </List>
-                    )}
-                </Box>
-            </Paper>
-        </Container>
+            </Container>
+        </ProtectedRoute>
     )
 }
