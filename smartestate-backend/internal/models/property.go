@@ -14,7 +14,7 @@ type Property struct {
 	User         User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Title        string         `gorm:"not null" json:"title"`
 	Description  string         `json:"description"`
-	Price        float64        `json:"price"`
+	Price        int64          `json:"price"`
 	PropertyType string         `json:"property_type"`
 	Status       string         `gorm:"default:'active'" json:"status"`
 	Address      Address        `gorm:"type:jsonb" json:"address"`

@@ -36,10 +36,10 @@ func (s *PropertyService) List(filters map[string]interface{}, page, limit int) 
 		query = query.Where("property_type = ?", propertyType)
 	}
 	if minPrice, ok := filters["min_price"].(float64); ok {
-		query = query.Where("price >= ?", minPrice)
+		query = query.Where("price >= ?", int64(minPrice))
 	}
 	if maxPrice, ok := filters["max_price"].(float64); ok {
-		query = query.Where("price <= ?", maxPrice)
+		query = query.Where("price <= ?", int64(maxPrice))
 	}
 	if rooms, ok := filters["rooms"].(int); ok {
 		query = query.Where("rooms = ?", rooms)

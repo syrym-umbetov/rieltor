@@ -29,7 +29,7 @@ type Claims struct {
 }
 
 func (s *AuthService) GenerateAccessToken(userID string) (string, error) {
-	expirationTime := time.Now().Add(15 * time.Minute)
+	expirationTime := time.Now().Add(24 * time.Hour) // 24 часа для удобства разработки
 	claims := &Claims{
 		UserID: userID,
 		Role:   "user",

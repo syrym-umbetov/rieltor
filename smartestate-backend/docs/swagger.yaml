@@ -1,5 +1,12 @@
 basePath: /api
 definitions:
+  internal_api_handlers.ErrorResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+    type: object
   internal_api_handlers.GenerateCreativesRequest:
     properties:
       platforms:
@@ -41,6 +48,100 @@ definitions:
     required:
     - content
     - session_id
+    type: object
+  internal_api_handlers.ParsePropertiesRequest:
+    type: object
+  internal_api_handlers.ParseResponseSwagger:
+    properties:
+      cached:
+        example: false
+        type: boolean
+      count:
+        example: 15
+        type: integer
+      error:
+        example: ""
+        type: string
+      parser_type:
+        example: selenium
+        type: string
+      properties:
+        items:
+          $ref: '#/definitions/internal_api_handlers.ParsedPropertySwagger'
+        type: array
+      request_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      status:
+        example: completed
+        type: string
+      success:
+        example: true
+        type: boolean
+    type: object
+  internal_api_handlers.ParsedPropertySwagger:
+    properties:
+      address:
+        example: мкр. Самал-2, 58
+        type: string
+      area:
+        example: 65.5
+        type: number
+      build_year:
+        example: 2018
+        type: integer
+      building_type:
+        example: monolith
+        type: string
+      currency:
+        example: ₸
+        type: string
+      description:
+        example: Просторная 2-комнатная квартира в центре Алматы
+        type: string
+      floor:
+        example: 7
+        type: integer
+      id:
+        example: krisha_12345
+        type: string
+      images:
+        example:
+        - '["https://krisha.kz/images/1.jpg"'
+        - '"https://krisha.kz/images/2.jpg"]'
+        items:
+          type: string
+        type: array
+      is_new_building:
+        example: false
+        type: boolean
+      kitchen_area:
+        example: 12.5
+        type: number
+      phone:
+        example: "+77001234567"
+        type: string
+      price:
+        example: 25000000
+        type: integer
+      residential_complex:
+        example: Алматы Тауэрс
+        type: string
+      rooms:
+        example: 2
+        type: integer
+      seller_type:
+        example: owner
+        type: string
+      title:
+        example: Продается 2-комнатная квартира
+        type: string
+      total_floors:
+        example: 16
+        type: integer
+      url:
+        example: https://krisha.kz/a/show/12345
+        type: string
     type: object
   internal_api_handlers.RegisterRequest:
     properties:
@@ -249,6 +350,75 @@ definitions:
           type: string
         type: array
     type: object
+  smartestate_internal_models.ParseRequest:
+    properties:
+      count:
+        type: integer
+      created_at:
+        type: string
+      error:
+        type: string
+      filters:
+        $ref: '#/definitions/smartestate_internal_models.PropertyFilters'
+      id:
+        type: string
+      max_pages:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/smartestate_internal_models.ParsedProperty'
+        type: array
+      status:
+        description: pending, processing, completed, failed
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  smartestate_internal_models.ParsedProperty:
+    properties:
+      address:
+        type: string
+      area:
+        type: number
+      build_year:
+        type: integer
+      building_type:
+        type: string
+      currency:
+        type: string
+      description:
+        type: string
+      floor:
+        type: integer
+      id:
+        type: string
+      images:
+        items:
+          type: string
+        type: array
+      is_new_building:
+        type: boolean
+      kitchen_area:
+        type: number
+      phone:
+        type: string
+      price:
+        type: integer
+      residential_complex:
+        type: string
+      rooms:
+        type: integer
+      seller_type:
+        type: string
+      title:
+        type: string
+      total_floors:
+        type: integer
+      url:
+        type: string
+    type: object
   smartestate_internal_models.Property:
     properties:
       address:
@@ -295,6 +465,66 @@ definitions:
         type: array
       vr_tour_url:
         type: string
+    type: object
+  smartestate_internal_models.PropertyFilters:
+    properties:
+      build_year_from:
+        description: минимальный год постройки
+        type: integer
+      build_year_to:
+        description: максимальный год постройки
+        type: integer
+      city:
+        description: Алматы, Астана, и т.д.
+        type: string
+      floor_from:
+        description: минимальный этаж
+        type: integer
+      floor_to:
+        description: максимальный этаж
+        type: integer
+      has_photos:
+        description: только с фото
+        type: boolean
+      is_new_building:
+        description: новостройка
+        type: boolean
+      not_first_floor:
+        description: не первый этаж
+        type: boolean
+      not_last_floor:
+        description: не последний этаж
+        type: boolean
+      price_max:
+        description: максимальная цена
+        type: integer
+      price_min:
+        description: минимальная цена
+        type: integer
+      property_type:
+        description: apartment, house, commercial
+        type: string
+      residential_complex:
+        description: жилой комплекс
+        type: string
+      rooms:
+        description: количество комнат
+        type: integer
+      seller_type:
+        description: owner, agent, developer
+        type: string
+      total_area_from:
+        description: минимальная площадь
+        type: integer
+      total_area_to:
+        description: максимальная площадь
+        type: integer
+      total_floors_from:
+        description: минимальная этажность дома
+        type: integer
+      total_floors_to:
+        description: максимальная этажность дома
+        type: integer
     type: object
   smartestate_internal_models.PropertyView:
     properties:
@@ -828,6 +1058,112 @@ paths:
       summary: Получить сообщения
       tags:
       - Chat
+  /parser/properties:
+    post:
+      consumes:
+      - application/json
+      description: Парсит недвижимость с сайта krisha.kz используя Selenium по заданным
+        фильтрам. Поддерживает все основные фильтры для поиска квартир, домов и коммерческой
+        недвижимости.
+      parameters:
+      - description: Параметры парсинга с фильтрами и количеством страниц
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.ParsePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный парсинг
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ParseResponseSwagger'
+        "400":
+          description: Некорректные параметры запроса
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Ошибка сервера или парсинга
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Парсинг недвижимости по фильтрам
+      tags:
+      - Parser
+  /parser/requests/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получает детальную информацию о запросе парсинга по уникальному
+        ID, включая статус, результаты и ошибки
+      parameters:
+      - description: UUID идентификатор запроса парсинга
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Информация о запросе парсинга
+          schema:
+            $ref: '#/definitions/smartestate_internal_models.ParseRequest'
+        "400":
+          description: Некорректный формат ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Запрос парсинга не найден
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Получить информацию о запросе парсинга
+      tags:
+      - Parser
+  /parser/test:
+    get:
+      consumes:
+      - application/json
+      description: Выполняет быстрый тестовый парсинг с базовыми фильтрами для демонстрации
+        работы системы. Парсит только одну страницу результатов.
+      parameters:
+      - default: '"Алматы"'
+        description: Город для поиска
+        enum:
+        - Алматы
+        - Нур-Султан
+        - Шымкент
+        in: query
+        name: city
+        type: string
+      - default: 2
+        description: Количество комнат
+        in: query
+        maximum: 10
+        minimum: 1
+        name: rooms
+        type: integer
+      - default: 50000000
+        description: Максимальная цена в тенге
+        in: query
+        minimum: 1000000
+        name: max_price
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Результаты тестового парсинга
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ParseResponseSwagger'
+        "500":
+          description: Ошибка при выполнении тестового парсинга
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Тестовый парсинг недвижимости
+      tags:
+      - Parser
   /properties:
     get:
       consumes:

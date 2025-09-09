@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Build**: `npm run build` - Build production version
 - **Production server**: `npm start` - Start production server
 - **Linting**: `npm run lint` - Run ESLint with Next.js configuration
+- **Backend server**: Start Go backend on http://localhost:8080 (see smartestate-backend directory)
 
 ## Project Architecture
 
@@ -96,6 +97,15 @@ src/
 - **API URL**: Configurable via `NEXT_PUBLIC_API_URL` (defaults to localhost:8080)
 - **Language**: Russian locale configured as primary language
 - **Font Loading**: Inter font with Latin and Cyrillic subsets
+
+### Backend Integration
+- **Parser API**: Integration with Go backend for Selenium-based property parsing
+  - Endpoint: `POST /api/parser/properties` - Full parsing with filters
+  - Endpoint: `GET /api/parser/test` - Quick test parsing
+  - Endpoint: `GET /api/parser/requests/:id` - Get parsing request status
+- **Parser Client**: `@/lib/api/parserApi` - TypeScript client for backend communication
+- **Fallback Support**: Automatic fallback to frontend parser if backend unavailable
+- **Test Page**: `/parser-test` - Interactive testing page for backend parser
 
 ### Import Aliases
 - `@/*` maps to `./src/*` for clean imports

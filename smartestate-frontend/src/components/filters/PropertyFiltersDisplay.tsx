@@ -33,6 +33,7 @@ import {
 import { PropertyFilters, PropertyFilterExtraction } from '@/types/PropertyFilters'
 import { ParsedProperty } from '@/lib/parsers/krishaParser'
 import PropertyResults from '../search/PropertyResults'
+import { parserApi } from '@/lib/api/parserApi'
 
 interface PropertyFiltersDisplayProps {
     extraction: PropertyFilterExtraction | null
@@ -71,29 +72,20 @@ export default function PropertyFiltersDisplay({ extraction, loading }: Property
         setSearchError(null)
         
         try {
-            const response = await fetch('/api/search-properties', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    filters: extraction.filters,
-                    pages: 1, // Уменьшили для быстрой демонстрации
-                    withDetails: false,
-                    useSelenium: true // Включаем Selenium для настоящих данных
-                }),
-            })
-
-            const data = await response.json()
+            console.log('Запуск поиска с фильтрами:', extraction.filters)
+            
+            // Используем backend parser API
+            const data = await parserApi.parseProperties(extraction.filters, 1) // 1 страница для быстрого тестирования
             
             if (data.success) {
                 setSearchResults(data.properties)
+                console.log(`Найдено ${data.count} объектов через ${data.parserType}`)
             } else {
                 setSearchError(data.error || 'Ошибка при поиске')
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Search error:', error)
-            setSearchError('Не удалось выполнить поиск. Проверьте подключение.')
+            setSearchError(error.message || 'Не удалось выполнить поиск. Проверьте подключение к backend.')
         } finally {
             setSearching(false)
         }
@@ -116,6 +108,16 @@ export default function PropertyFiltersDisplay({ extraction, loading }: Property
     const { filters, confidence, extractedFrom, needsClarification } = extraction
 
     const formatPrice = (price: number) => {
+        if (price >= 1000000) {
+            const millions = price / 1000000
+            if (millions >= 10) {
+                return `${Math.round(millions)} млн ₸`
+            } else {
+                return `${millions.toFixed(1)} млн ₸`
+            }
+        } else if (price >= 1000) {
+            return `${Math.round(price / 1000)} тыс ₸`
+        }
         return new Intl.NumberFormat('ru-KZ').format(price) + ' ₸'
     }
 

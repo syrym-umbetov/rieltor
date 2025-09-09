@@ -35,7 +35,7 @@ export default function ChatPage() {
     const [searchQuery, setSearchQuery] = useState('')
 
     const filteredSessions = sessions.filter(session =>
-        session.messages.some(msg =>
+        (session.messages || []).some(msg =>
             msg.content.toLowerCase().includes(searchQuery.toLowerCase())
         )
     )
@@ -107,9 +107,9 @@ export default function ChatPage() {
                                         </ListItemAvatar>
                                         <ListItemText
                                             primary={
-                                                session.messages[0]?.content.substring(0, 50) + '...' || 'Новый чат'
+                                                (session.messages?.[0]?.content?.substring(0, 50) + '...') || 'Новый чат'
                                             }
-                                            secondary={format(new Date(session.messages[0]?.timestamp || new Date()), 'dd.MM.yyyy HH:mm')}
+                                            secondary={format(new Date(session.messages?.[0]?.timestamp || new Date()), 'dd.MM.yyyy HH:mm')}
                                         />
                                     </ListItemButton>
                                 </ListItem>

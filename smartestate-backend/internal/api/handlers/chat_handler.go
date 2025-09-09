@@ -209,10 +209,16 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 // @Tags Chat
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Param token query string true "JWT токен"
 // @Success 101 "WebSocket соединение установлено"
 // @Router /ws/chat [get]
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
+	// Get token from query parameter for WebSocket auth
+	token := c.Query("token")
+	if token != "" {
+		c.Request.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return

@@ -40,6 +40,18 @@ interface PropertyResultsProps {
 export default function PropertyResults({ properties, loading, error }: PropertyResultsProps) {
     const formatPrice = (price: number, currency: string) => {
         if (price === 0) return 'Цена не указана'
+        
+        if (price >= 1000000) {
+            const millions = price / 1000000
+            if (millions >= 10) {
+                return `${Math.round(millions)} млн ${currency}`
+            } else {
+                return `${millions.toFixed(1)} млн ${currency}`
+            }
+        } else if (price >= 1000) {
+            return `${Math.round(price / 1000)} тыс ${currency}`
+        }
+        
         return new Intl.NumberFormat('ru-KZ').format(price) + ' ' + currency
     }
 

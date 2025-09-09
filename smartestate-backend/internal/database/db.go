@@ -179,6 +179,7 @@ func runMigrations(db *gorm.DB) error {
 		&models.ChatSession{},
 		&models.ChatMessage{},
 		&models.Campaign{},
+		&models.ParseRequest{},
 	}
 
 	for _, model := range models {
@@ -201,6 +202,7 @@ func runMigrations(db *gorm.DB) error {
 		"ALTER TABLE chat_sessions ADD CONSTRAINT fk_chat_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
 		"ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_messages_session FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE",
 		"ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+		"ALTER TABLE parse_requests ADD CONSTRAINT fk_parse_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
 	}
 
 	for _, constraint := range constraints {

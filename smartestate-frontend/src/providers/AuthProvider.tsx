@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
 
                 // Затем проверяем токен на сервере
-                const response = await fetch(`${API_URL}/auth/me`, {
+                const response = await fetch(`${API_URL}/auth/profile`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/json'

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useChat } from '@/hooks/useChat'
 import {
     Box,
     Paper,
@@ -38,7 +39,10 @@ import {
     Search
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import PropertyFiltersDisplay from '../filters/PropertyFiltersDisplay'
+import PropertyResults from './PropertyResults'
+import LoadingAnimation from './LoadingAnimation'
 import { PropertyFilterExtraction } from '@/types/PropertyFilters'
 
 interface Message {
@@ -54,22 +58,19 @@ interface AIChatProps {
 }
 
 export default function AIChat({ open = true, onClose }: AIChatProps) {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            role: 'assistant',
-            content: '👋 Привет! Я AI-риелтор SmartEstate с поддержкой нескольких AI!\n\n🤖 Доступные модели:\n• ChatGPT - универсальный и быстрый\n• Gemini - от Google, отличная аналитика\n• Claude - от Anthropic, детальные ответы\n• Консенсус - мнение всех AI сразу\n\n🏠 Чем могу помочь:\n• Найти идеальную квартиру\n• Рассчитать ипотеку и платежи\n• Оценить стоимость недвижимости\n• Записать на просмотр объектов\n• Дать советы по покупке/продаже\n\nВыберите модель AI и задавайте вопросы! 🚀',
-            timestamp: new Date()
-        }
-    ])
+    // Используем ChatProvider для работы с backend
+    const { currentSession, sendMessage, createSession, isTyping } = useChat()
     const [input, setInput] = useState('')
-    const [isTyping, setIsTyping] = useState(false)
     const [expanded, setExpanded] = useState(open)
     const [selectedModel, setSelectedModel] = useState('openai')
     const [chatMode, setChatMode] = useState<'single' | 'consensus'>('single')
     const [extractedFilters, setExtractedFilters] = useState<PropertyFilterExtraction | null>(null)
     const [extractingFilters, setExtractingFilters] = useState(false)
+    const [loadingStage, setLoadingStage] = useState<'thinking' | 'searching' | 'parsing' | 'formatting'>('thinking')
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    
+    // Получаем сообщения из текущей сессии
+    const messages = currentSession?.messages || []
 
     const scrollToBottom = () => {
         // Скроллим к самому чату, а не к последнему сообщению внутри
@@ -87,80 +88,50 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
         setExpanded(open)
     }, [open])
 
+    useEffect(() => {
+        // Создаем сессию при первом открытии чата, если её нет
+        if (open && !currentSession) {
+            createSession()
+        }
+    }, [open, currentSession, createSession])
+
+    // Автоматическая смена стадий загрузки
+    useEffect(() => {
+        if (!isTyping) {
+            setLoadingStage('thinking')
+            return
+        }
+
+        const stages: Array<'thinking' | 'searching' | 'parsing' | 'formatting'> = [
+            'thinking', 'searching', 'parsing', 'formatting'
+        ]
+        
+        let currentStageIndex = 0
+        setLoadingStage(stages[0])
+
+        const interval = setInterval(() => {
+            currentStageIndex = (currentStageIndex + 1) % stages.length
+            setLoadingStage(stages[currentStageIndex])
+        }, 3000) // Меняем стадию каждые 3 секунды
+
+        return () => clearInterval(interval)
+    }, [isTyping])
+
     const handleSend = async () => {
         if (!input.trim()) return
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: input,
-            timestamp: new Date()
-        }
-
-        setMessages(prev => [...prev, userMessage])
         const currentInput = input
         setInput('')
-        setIsTyping(true)
 
         try {
-            // Отправляем запрос к нашему API с выбранной моделью
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    messages: [
-                        ...messages.map(msg => ({
-                            role: msg.role,
-                            content: msg.content
-                        })),
-                        {
-                            role: 'user',
-                            content: currentInput
-                        }
-                    ],
-                    model: selectedModel,
-                    mode: chatMode
-                }),
-            })
-
-            const data = await response.json()
-
-            const aiResponse: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: data.content,
-                timestamp: new Date()
-            }
-
-            setMessages(prev => [...prev, aiResponse])
+            // Используем ChatProvider для отправки сообщения в backend
+            await sendMessage(currentInput)
         } catch (error) {
             console.error('Chat error:', error)
-            
-            // Fallback response при ошибке
-            const errorResponse: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: 'Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз или используйте быстрые действия ниже.',
-                timestamp: new Date()
-            }
-            setMessages(prev => [...prev, errorResponse])
-        } finally {
-            setIsTyping(false)
+            // ChatProvider сам обработает ошибки
         }
     }
 
-    const generateAIResponse = (userInput: string) => {
-        const lower = userInput.toLowerCase()
-
-        if (lower.includes('квартир') || lower.includes('комн')) {
-            return 'Найдено 156 вариантов!\n\nТоп-3 по вашему запросу:\n• 2-комн, 65м² - 35 млн ₸\n• 2-комн, 58м² - 28 млн ₸\n• 2-комн, 70м² - 42 млн ₸\n\nПоказать все?'
-        } else if (lower.includes('ипотек')) {
-            return 'Лучшие условия:\n• 7-20-25: от 140K ₸/мес\n• Отбасы: от 125K ₸/мес\n• Halyk: от 155K ₸/мес\n\nОформить заявку?'
-        }
-        return 'Обрабатываю запрос... Могу помочь с поиском недвижимости, расчетом ипотеки или оценкой квартиры.'
-    }
 
     const handleExtractFilters = async () => {
         if (messages.length <= 1) return // Нет диалога для анализа
@@ -212,30 +183,76 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
             {/* Chat Header */}
             <Box
                 sx={{
-                    p: 2,
+                    p: 2.5,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                     color: 'white',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    borderRadius: expanded ? '0' : '16px 16px 0 0',
+                    boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%)',
+                        opacity: 0,
+                        transition: 'opacity 0.3s ease',
+                    },
+                    '&:hover::before': {
+                        opacity: 1
+                    }
                 }}
                 onClick={() => setExpanded(!expanded)}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
-                        <SmartToy />
+                    <Avatar sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)',
+                        width: 48,
+                        height: 48,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+                    }}>
+                        <SmartToy sx={{ fontSize: 28 }} />
                     </Avatar>
                     <Box>
-                        <Typography variant="h6" fontWeight="600">
+                        <Typography variant="h6" fontWeight="700" sx={{ fontSize: '1.1rem', mb: 0.5 }}>
                             AI Риелтор SmartEstate
                         </Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                            <Box component="span" sx={{ color: '#10b981', mr: 0.5 }}>●</Box>
-                            Готов помочь
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box 
+                                component="span" 
+                                sx={{ 
+                                    width: 8, 
+                                    height: 8, 
+                                    bgcolor: '#10b981', 
+                                    borderRadius: '50%',
+                                    boxShadow: '0 0 6px #10b981'
+                                }} 
+                            />
+                            <Typography variant="caption" sx={{ opacity: 0.95, fontWeight: 500 }}>
+                                Готов помочь найти недвижимость
+                            </Typography>
+                        </Box>
                     </Box>
                 </Box>
-                <IconButton sx={{ color: 'white' }}>
+                <IconButton 
+                    sx={{ 
+                        color: 'white',
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                        '&:hover': {
+                            bgcolor: 'rgba(255,255,255,0.2)',
+                            transform: 'scale(1.1)'
+                        },
+                        transition: 'all 0.2s ease'
+                    }}
+                >
                     {expanded ? <ExpandLess /> : <ExpandMore />}
                 </IconButton>
             </Box>
@@ -251,8 +268,97 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                     }}
                 >
                     {/* Messages */}
-                    <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                    <Box sx={{ 
+                        flex: 1, 
+                        overflow: 'auto', 
+                        p: 2,
+                        bgcolor: '#f8fafc',
+                        backgroundImage: `radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.05) 0%, rgba(255, 255, 255, 0) 50%),
+                                         radial-gradient(circle at 80% 20%, rgba(120, 119, 198, 0.05) 0%, rgba(255, 255, 255, 0) 50%)`,
+                    }}>
                         <AnimatePresence>
+                            {/* Показываем приветствие, если нет сессии или сообщений */}
+                            {(!currentSession || messages.length === 0) && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                                        <Avatar sx={{ 
+                                            width: 40, 
+                                            height: 40, 
+                                            bgcolor: 'primary.main',
+                                            boxShadow: '0 4px 8px rgba(99, 102, 241, 0.3)'
+                                        }}>
+                                            <SmartToy />
+                                        </Avatar>
+                                        <Paper sx={{ 
+                                            p: 2.5, 
+                                            maxWidth: '85%', 
+                                            bgcolor: 'white', 
+                                            borderRadius: 3, 
+                                            borderBottomLeftRadius: 0,
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                            border: '1px solid',
+                                            borderColor: 'primary.light'
+                                        }}>
+                                            <Typography variant="h6" sx={{ 
+                                                fontWeight: 600, 
+                                                color: 'primary.main',
+                                                mb: 1.5,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1
+                                            }}>
+                                                👋 Привет! Я AI-риелтор SmartEstate!
+                                            </Typography>
+                                            
+                                            <Typography variant="body2" sx={{ 
+                                                color: 'text.secondary',
+                                                mb: 2,
+                                                lineHeight: 1.6
+                                            }}>
+                                                🏠 Чем могу помочь:
+                                            </Typography>
+                                            
+                                            <Box component="ul" sx={{ 
+                                                m: 0, 
+                                                pl: 2,
+                                                mb: 2,
+                                                '& li': {
+                                                    mb: 0.5,
+                                                    fontSize: '0.9rem',
+                                                    color: 'text.primary'
+                                                }
+                                            }}>
+                                                <li>• Найти идеальную квартиру</li>
+                                                <li>• Рассчитать ипотеку и платежи</li>
+                                                <li>• Оценить стоимость недвижимости</li>
+                                                <li>• Записать на просмотр объектов</li>
+                                                <li>• Дать советы по покупке/продаже</li>
+                                            </Box>
+                                            
+                                            <Box sx={{ 
+                                                p: 1.5, 
+                                                bgcolor: 'primary.light', 
+                                                borderRadius: 2,
+                                                border: '1px solid',
+                                                borderColor: 'primary.main'
+                                            }}>
+                                                <Typography variant="body2" sx={{ 
+                                                    color: 'primary.contrastText',
+                                                    fontWeight: 500,
+                                                    fontSize: '0.85rem'
+                                                }}>
+                                                    💡 Просто напишите что ищете, например: "Найди 2-комнатную квартиру в Алматы до 40 млн тенге" 🚀
+                                                </Typography>
+                                            </Box>
+                                        </Paper>
+                                    </Box>
+                                </motion.div>
+                            )}
+                            
                             {messages.map((message) => (
                                 <motion.div
                                     key={message.id}
@@ -271,27 +377,45 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                                     >
                                         <Avatar
                                             sx={{
-                                                width: 32,
-                                                height: 32,
-                                                bgcolor: message.role === 'user' ? 'primary.main' : 'grey.300'
+                                                width: 36,
+                                                height: 36,
+                                                bgcolor: message.role === 'user' ? 'primary.main' : 'primary.main',
+                                                boxShadow: message.role === 'user' 
+                                                    ? '0 4px 8px rgba(99, 102, 241, 0.3)' 
+                                                    : '0 4px 8px rgba(99, 102, 241, 0.3)',
+                                                border: message.role === 'user' ? 'none' : '2px solid white'
                                             }}
                                         >
                                             {message.role === 'user' ? <Person /> : <SmartToy />}
                                         </Avatar>
                                         <Paper
                                             sx={{
-                                                p: 1.5,
-                                                maxWidth: '80%',
-                                                bgcolor: message.role === 'user' ? 'primary.main' : 'white',
+                                                p: message.role === 'user' ? 2 : 0,
+                                                maxWidth: message.role === 'user' ? '70%' : '100%',
+                                                bgcolor: message.role === 'user' ? 'primary.main' : 'transparent',
                                                 color: message.role === 'user' ? 'white' : 'text.primary',
-                                                borderRadius: 2,
+                                                borderRadius: 3,
                                                 borderBottomRightRadius: message.role === 'user' ? 0 : 16,
-                                                borderBottomLeftRadius: message.role === 'user' ? 16 : 0
+                                                borderBottomLeftRadius: message.role === 'user' ? 16 : 0,
+                                                boxShadow: message.role === 'user' ? '0 4px 12px rgba(99, 102, 241, 0.3)' : 'none',
+                                                border: message.role === 'user' ? 'none' : '1px solid transparent'
                                             }}
                                         >
-                                            <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
-                                                {message.content}
-                                            </Typography>
+                                            {message.role === 'assistant' ? (
+                                                <PropertyResults content={message.content} />
+                                            ) : (
+                                                <Typography 
+                                                    variant="body1" 
+                                                    sx={{ 
+                                                        whiteSpace: 'pre-line',
+                                                        fontWeight: 500,
+                                                        fontSize: '0.95rem',
+                                                        lineHeight: 1.4
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </Typography>
+                                            )}
                                         </Paper>
                                     </Box>
                                 </motion.div>
@@ -299,18 +423,10 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                         </AnimatePresence>
 
                         {isTyping && (
-                            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'grey.300' }}>
-                                    <SmartToy />
-                                </Avatar>
-                                <Paper sx={{ p: 1.5, bgcolor: 'white', borderRadius: 2 }}>
-                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                        <CircularProgress size={8} />
-                                        <CircularProgress size={8} sx={{ animationDelay: '0.2s' }} />
-                                        <CircularProgress size={8} sx={{ animationDelay: '0.4s' }} />
-                                    </Box>
-                                </Paper>
-                            </Box>
+                            <LoadingAnimation 
+                                message="Обрабатываю ваш запрос..."
+                                stage={loadingStage}
+                            />
                         )}
                         <div ref={messagesEndRef} />
                     </Box>
@@ -381,7 +497,16 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                     </Box>
 
                     {/* Quick Actions */}
-                    <Box sx={{ px: 2, pb: 1 }}>
+                    <Box sx={{ px: 2, pb: 1, borderTop: '1px solid', borderColor: 'grey.100', bgcolor: 'white' }}>
+                        <Typography variant="caption" sx={{ 
+                            display: 'block', 
+                            color: 'text.secondary', 
+                            mb: 1, 
+                            fontWeight: 500,
+                            mt: 1
+                        }}>
+                            💡 Популярные запросы:
+                        </Typography>
                         <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, mb: 1 }}>
                             {quickActions.map((action) => (
                                 <Chip
@@ -390,7 +515,17 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                                     onClick={() => setInput(action)}
                                     sx={{
                                         cursor: 'pointer',
-                                        '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                                        borderRadius: 3,
+                                        fontSize: '0.8rem',
+                                        height: 32,
+                                        whiteSpace: 'nowrap',
+                                        '&:hover': { 
+                                            bgcolor: 'primary.main', 
+                                            color: 'white',
+                                            transform: 'translateY(-1px)',
+                                            boxShadow: '0 4px 8px rgba(99, 102, 241, 0.3)'
+                                        },
+                                        transition: 'all 0.2s ease'
                                     }}
                                 />
                             ))}
@@ -398,7 +533,7 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                         
                         {/* Filter Extraction Button */}
                         {messages.length > 1 && (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5 }}>
                                 <Button
                                     variant="outlined"
                                     startIcon={<FilterAlt />}
@@ -406,14 +541,39 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                                     disabled={extractingFilters}
                                     size="small"
                                     sx={{ 
-                                        borderRadius: 20,
-                                        textTransform: 'none'
+                                        borderRadius: 3,
+                                        textTransform: 'none',
+                                        fontWeight: 500,
+                                        px: 2,
+                                        py: 1,
+                                        borderColor: 'primary.main',
+                                        color: 'primary.main',
+                                        '&:hover': {
+                                            bgcolor: 'primary.main',
+                                            color: 'white',
+                                            transform: 'translateY(-1px)',
+                                            boxShadow: '0 4px 8px rgba(99, 102, 241, 0.3)'
+                                        },
+                                        transition: 'all 0.2s ease'
                                     }}
                                 >
                                     {extractingFilters ? (
                                         <>
-                                            <CircularProgress size={16} sx={{ mr: 1 }} />
-                                            Анализирую...
+                                            <Box sx={{
+                                                width: 16,
+                                                height: 16,
+                                                mr: 1,
+                                                borderRadius: '50%',
+                                                border: '2px solid',
+                                                borderColor: 'primary.main',
+                                                borderTopColor: 'transparent',
+                                                animation: 'spin 1s linear infinite',
+                                                '@keyframes spin': {
+                                                    '0%': { transform: 'rotate(0deg)' },
+                                                    '100%': { transform: 'rotate(360deg)' }
+                                                }
+                                            }} />
+                                            Анализирую диалог...
                                         </>
                                     ) : (
                                         'Извлечь фильтры поиска'
@@ -424,28 +584,78 @@ export default function AIChat({ open = true, onClose }: AIChatProps) {
                     </Box>
 
                     {/* Input */}
-                    <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+                    <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: 'white' }}>
                         <TextField
                             fullWidth
                             placeholder="Напишите запрос..."
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                            multiline
+                            maxRows={4}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 3,
+                                    bgcolor: 'grey.50',
+                                    border: '2px solid transparent',
+                                    '&:hover': {
+                                        bgcolor: 'grey.100',
+                                        borderColor: 'primary.light'
+                                    },
+                                    '&.Mui-focused': {
+                                        bgcolor: 'white',
+                                        borderColor: 'primary.main',
+                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                                    }
+                                },
+                                '& .MuiInputBase-input': {
+                                    fontSize: '0.95rem',
+                                    py: 1.5
+                                }
+                            }}
                             InputProps={{
                                 endAdornment: (
                                     <InputAdornment position="end">
-                                        <IconButton size="small" sx={{ mr: 1 }}>
-                                            <AttachFile />
+                                        <IconButton 
+                                            size="small" 
+                                            sx={{ 
+                                                mr: 0.5, 
+                                                color: 'text.secondary',
+                                                '&:hover': { color: 'primary.main', bgcolor: 'primary.light' }
+                                            }}
+                                        >
+                                            <AttachFile sx={{ fontSize: 20 }} />
                                         </IconButton>
-                                        <IconButton size="small" sx={{ mr: 1 }}>
-                                            <Mic />
+                                        <IconButton 
+                                            size="small" 
+                                            sx={{ 
+                                                mr: 0.5, 
+                                                color: 'text.secondary',
+                                                '&:hover': { color: 'primary.main', bgcolor: 'primary.light' }
+                                            }}
+                                        >
+                                            <Mic sx={{ fontSize: 20 }} />
                                         </IconButton>
                                         <IconButton
-                                            color="primary"
                                             onClick={handleSend}
                                             disabled={!input.trim()}
+                                            sx={{
+                                                bgcolor: input.trim() ? 'primary.main' : 'grey.300',
+                                                color: 'white',
+                                                width: 36,
+                                                height: 36,
+                                                '&:hover': {
+                                                    bgcolor: input.trim() ? 'primary.dark' : 'grey.400',
+                                                    transform: input.trim() ? 'scale(1.05)' : 'none'
+                                                },
+                                                '&:disabled': {
+                                                    bgcolor: 'grey.300',
+                                                    color: 'grey.500'
+                                                },
+                                                transition: 'all 0.2s ease'
+                                            }}
                                         >
-                                            <Send />
+                                            <Send sx={{ fontSize: 18 }} />
                                         </IconButton>
                                     </InputAdornment>
                                 )

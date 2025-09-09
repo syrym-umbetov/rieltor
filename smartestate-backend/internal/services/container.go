@@ -16,17 +16,34 @@ type Container struct {
 	Search    *SearchService
 	Targeting *TargetingService
 	Analytics *AnalyticsService
+	Parser    *ParserService
 }
 
 func NewContainer(db *gorm.DB, redis *redis.Client, cfg *config.Config) *Container {
+	// Create services
+	authService := NewAuthService(cfg, redis)
+	userService := NewUserService(db)
+	propertyService := NewPropertyService(db, redis)
+	chatService := NewChatService(db, redis)
+	aiService := NewAIService(cfg)
+	searchService := NewSearchService(db, redis)
+	targetingService := NewTargetingService(db, redis, cfg)
+	analyticsService := NewAnalyticsService(db, redis)
+	parserService := NewParserService(db)
+
+	// Set up AI service integrations
+	aiService.SetParserService(parserService)
+	aiService.SetChatService(chatService)
+
 	return &Container{
-		Auth:      NewAuthService(cfg, redis),
-		User:      NewUserService(db),
-		Property:  NewPropertyService(db, redis),
-		Chat:      NewChatService(db, redis),
-		AI:        NewAIService(cfg),
-		Search:    NewSearchService(db, redis),
-		Targeting: NewTargetingService(db, redis, cfg),
-		Analytics: NewAnalyticsService(db, redis),
+		Auth:      authService,
+		User:      userService,
+		Property:  propertyService,
+		Chat:      chatService,
+		AI:        aiService,
+		Search:    searchService,
+		Targeting: targetingService,
+		Analytics: analyticsService,
+		Parser:    parserService,
 	}
 }

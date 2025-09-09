@@ -680,6 +680,157 @@
                 }
             }
         },
+        "/parser/properties": {
+            "post": {
+                "description": "Парсит недвижимость с сайта krisha.kz используя Selenium по заданным фильтрам. Поддерживает все основные фильтры для поиска квартир, домов и коммерческой недвижимости.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parser"
+                ],
+                "summary": "Парсинг недвижимости по фильтрам",
+                "parameters": [
+                    {
+                        "description": "Параметры парсинга с фильтрами и количеством страниц",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ParsePropertiesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешный парсинг",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ParseResponseSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректные параметры запроса",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Ошибка сервера или парсинга",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/parser/requests/{id}": {
+            "get": {
+                "description": "Получает детальную информацию о запросе парсинга по уникальному ID, включая статус, результаты и ошибки",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parser"
+                ],
+                "summary": "Получить информацию о запросе парсинга",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "UUID идентификатор запроса парсинга",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Информация о запросе парсинга",
+                        "schema": {
+                            "$ref": "#/definitions/smartestate_internal_models.ParseRequest"
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректный формат ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Запрос парсинга не найден",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/parser/test": {
+            "get": {
+                "description": "Выполняет быстрый тестовый парсинг с базовыми фильтрами для демонстрации работы системы. Парсит только одну страницу результатов.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parser"
+                ],
+                "summary": "Тестовый парсинг недвижимости",
+                "parameters": [
+                    {
+                        "enum": [
+                            "Алматы",
+                            "Нур-Султан",
+                            "Шымкент"
+                        ],
+                        "type": "string",
+                        "default": "\"Алматы\"",
+                        "description": "Город для поиска",
+                        "name": "city",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 10,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 2,
+                        "description": "Количество комнат",
+                        "name": "rooms",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1000000,
+                        "type": "integer",
+                        "default": 50000000,
+                        "description": "Максимальная цена в тенге",
+                        "name": "max_price",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Результаты тестового парсинга",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ParseResponseSwagger"
+                        }
+                    },
+                    "500": {
+                        "description": "Ошибка при выполнении тестового парсинга",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/properties": {
             "get": {
                 "description": "Get paginated list of properties with filters",
@@ -1593,6 +1744,17 @@
         }
     },
     "definitions": {
+        "internal_api_handlers.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_api_handlers.GenerateCreativesRequest": {
             "type": "object",
             "required": [
@@ -1649,6 +1811,135 @@
                 "session_id": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "internal_api_handlers.ParsePropertiesRequest": {
+            "type": "object"
+        },
+        "internal_api_handlers.ParseResponseSwagger": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "count": {
+                    "type": "integer",
+                    "example": 15
+                },
+                "error": {
+                    "type": "string",
+                    "example": ""
+                },
+                "parser_type": {
+                    "type": "string",
+                    "example": "selenium"
+                },
+                "properties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.ParsedPropertySwagger"
+                    }
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "completed"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "internal_api_handlers.ParsedPropertySwagger": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "example": "мкр. Самал-2, 58"
+                },
+                "area": {
+                    "type": "number",
+                    "example": 65.5
+                },
+                "build_year": {
+                    "type": "integer",
+                    "example": 2018
+                },
+                "building_type": {
+                    "type": "string",
+                    "example": "monolith"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "₸"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Просторная 2-комнатная квартира в центре Алматы"
+                },
+                "floor": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "id": {
+                    "type": "string",
+                    "example": "krisha_12345"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"https://krisha.kz/images/1.jpg\"",
+                        "\"https://krisha.kz/images/2.jpg\"]"
+                    ]
+                },
+                "is_new_building": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "kitchen_area": {
+                    "type": "number",
+                    "example": 12.5
+                },
+                "phone": {
+                    "type": "string",
+                    "example": "+77001234567"
+                },
+                "price": {
+                    "type": "integer",
+                    "example": 25000000
+                },
+                "residential_complex": {
+                    "type": "string",
+                    "example": "Алматы Тауэрс"
+                },
+                "rooms": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "seller_type": {
+                    "type": "string",
+                    "example": "owner"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Продается 2-комнатная квартира"
+                },
+                "total_floors": {
+                    "type": "integer",
+                    "example": 16
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://krisha.kz/a/show/12345"
                 }
             }
         },
@@ -1962,6 +2253,110 @@
                 }
             }
         },
+        "smartestate_internal_models.ParseRequest": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "filters": {
+                    "$ref": "#/definitions/smartestate_internal_models.PropertyFilters"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_pages": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/smartestate_internal_models.ParsedProperty"
+                    }
+                },
+                "status": {
+                    "description": "pending, processing, completed, failed",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "smartestate_internal_models.ParsedProperty": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "area": {
+                    "type": "number"
+                },
+                "build_year": {
+                    "type": "integer"
+                },
+                "building_type": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "floor": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_new_building": {
+                    "type": "boolean"
+                },
+                "kitchen_area": {
+                    "type": "number"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "integer"
+                },
+                "residential_complex": {
+                    "type": "string"
+                },
+                "rooms": {
+                    "type": "integer"
+                },
+                "seller_type": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_floors": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "smartestate_internal_models.Property": {
             "type": "object",
             "properties": {
@@ -2030,6 +2425,87 @@
                 },
                 "vr_tour_url": {
                     "type": "string"
+                }
+            }
+        },
+        "smartestate_internal_models.PropertyFilters": {
+            "type": "object",
+            "properties": {
+                "build_year_from": {
+                    "description": "минимальный год постройки",
+                    "type": "integer"
+                },
+                "build_year_to": {
+                    "description": "максимальный год постройки",
+                    "type": "integer"
+                },
+                "city": {
+                    "description": "Алматы, Астана, и т.д.",
+                    "type": "string"
+                },
+                "floor_from": {
+                    "description": "минимальный этаж",
+                    "type": "integer"
+                },
+                "floor_to": {
+                    "description": "максимальный этаж",
+                    "type": "integer"
+                },
+                "has_photos": {
+                    "description": "только с фото",
+                    "type": "boolean"
+                },
+                "is_new_building": {
+                    "description": "новостройка",
+                    "type": "boolean"
+                },
+                "not_first_floor": {
+                    "description": "не первый этаж",
+                    "type": "boolean"
+                },
+                "not_last_floor": {
+                    "description": "не последний этаж",
+                    "type": "boolean"
+                },
+                "price_max": {
+                    "description": "максимальная цена",
+                    "type": "integer"
+                },
+                "price_min": {
+                    "description": "минимальная цена",
+                    "type": "integer"
+                },
+                "property_type": {
+                    "description": "apartment, house, commercial",
+                    "type": "string"
+                },
+                "residential_complex": {
+                    "description": "жилой комплекс",
+                    "type": "string"
+                },
+                "rooms": {
+                    "description": "количество комнат",
+                    "type": "integer"
+                },
+                "seller_type": {
+                    "description": "owner, agent, developer",
+                    "type": "string"
+                },
+                "total_area_from": {
+                    "description": "минимальная площадь",
+                    "type": "integer"
+                },
+                "total_area_to": {
+                    "description": "максимальная площадь",
+                    "type": "integer"
+                },
+                "total_floors_from": {
+                    "description": "минимальная этажность дома",
+                    "type": "integer"
+                },
+                "total_floors_to": {
+                    "description": "максимальная этажность дома",
+                    "type": "integer"
                 }
             }
         },

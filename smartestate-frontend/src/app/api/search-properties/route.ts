@@ -3,10 +3,11 @@ import { KrishaParser, ParsedProperty } from '@/lib/parsers/krishaParser'
 import { KrishaHttpParser } from '@/lib/parsers/krishaHttpParser'
 import { PropertyFilters } from '@/types/PropertyFilters'
 import { searchCache } from '@/lib/cache/SearchCache'
+import { parserApi } from '@/lib/api/parserApi'
 
 export async function POST(request: NextRequest) {
   try {
-    const { filters, pages = 2, withDetails = false, useSelenium = false } = await request.json()
+    const { filters, pages = 2, withDetails = false, useSelenium = false, useBackend = true } = await request.json()
 
     console.log('Starting property search with filters:', filters)
 
@@ -20,6 +21,20 @@ export async function POST(request: NextRequest) {
     let properties: ParsedProperty[] = []
     let cachedResults: ParsedProperty[] | null = null
 
+    // Если используем backend API
+    if (useBackend) {
+      try {
+        console.log('Using backend parser API')
+        const backendResponse = await parserApi.parseProperties(filters, pages)
+        
+        return NextResponse.json(backendResponse)
+      } catch (error: any) {
+        console.error('Backend parser failed, falling back to frontend parser:', error)
+        // Если backend не работает, используем фронтенд парсер как fallback
+      }
+    }
+
+    // Fallback к фронтенд парсеру
     if (useSelenium) {
       // Проверяем кеш сначала
       cachedResults = searchCache.get(filters as PropertyFilters, pages)

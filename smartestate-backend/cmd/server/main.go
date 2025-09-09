@@ -192,6 +192,14 @@ func setupRouter(cfg *config.Config, handlersContainer *handlers.Container, auth
 			analytics.GET("/market-trends", handlersContainer.Analytics.MarketTrends)
 		}
 
+		// Parser routes
+		parser := api.Group("/parser")
+		{
+			parser.POST("/properties", handlersContainer.Parser.ParseProperties)
+			parser.GET("/requests/:id", handlersContainer.Parser.GetParseRequest)
+			parser.GET("/test", handlersContainer.Parser.TestParse)
+		}
+
 		// WebSocket for real-time chat
 		api.GET("/ws/chat", authMiddleware, handlersContainer.Chat.HandleWebSocket)
 	}

@@ -11,6 +11,7 @@ type Container struct {
 	Chat      *ChatHandler
 	Targeting *TargetingHandler
 	Analytics *AnalyticsHandler
+	Parser    *ParserHandler
 }
 
 func NewContainer(services *services.Container) *Container {
@@ -20,5 +21,6 @@ func NewContainer(services *services.Container) *Container {
 		Chat:      NewChatHandler(services.Chat, services.AI),
 		Targeting: NewTargetingHandler(services.Targeting, services.AI),
 		Analytics: NewAnalyticsHandler(services.Analytics),
+		Parser:    NewParserHandler(services.Parser),
 	}
 }
