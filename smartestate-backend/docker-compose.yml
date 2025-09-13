@@ -1,6 +1,4 @@
 # docker-compose.yml
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -37,6 +35,91 @@ services:
     networks:
       - smartestate-network
 
+  # Selenium Grid Hub - Координатор для всех узлов
+  selenium-hub:
+    image: selenium/hub:4.15.0
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      - GRID_MAX_SESSION=50 # Максимум 50 параллельных сессий
+      - GRID_BROWSER_TIMEOUT=300
+      - GRID_TIMEOUT=300
+      - GRID_NEW_SESSION_WAIT_TIMEOUT=60
+    networks:
+      - smartestate-network
+    restart: unless-stopped
+
+  # Множественные Chrome узлы для максимальной параллельности
+  chrome-node-1:
+    image: selenium/node-chrome:4.15.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+      - NODE_MAX_INSTANCES=4 # 4 параллельные сессии на узел
+      - NODE_MAX_SESSION=4
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    networks:
+      - smartestate-network
+    restart: unless-stopped
+
+  chrome-node-2:
+    image: selenium/node-chrome:4.15.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+      - NODE_MAX_INSTANCES=4
+      - NODE_MAX_SESSION=4
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    networks:
+      - smartestate-network
+    restart: unless-stopped
+
+  chrome-node-3:
+    image: selenium/node-chrome:4.15.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+      - NODE_MAX_INSTANCES=4
+      - NODE_MAX_SESSION=4
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    networks:
+      - smartestate-network
+    restart: unless-stopped
+
+  # Узел Firefox для разнообразия
+  firefox-node:
+    image: selenium/node-firefox:4.15.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+      - NODE_MAX_INSTANCES=4
+      - NODE_MAX_SESSION=4
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    networks:
+      - smartestate-network
+    restart: unless-stopped
+
   backend:
     build:
       context: .  # Changed from ./backend to current directory
@@ -57,6 +140,7 @@ services:
       - postgres
       - redis
       - elasticsearch
+      - selenium-hub
     volumes:
       - .:/app  # Mount current directory
       - uploads:/app/uploads

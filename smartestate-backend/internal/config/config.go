@@ -11,7 +11,7 @@ type Config struct {
 	Database DatabaseConfig
 	Redis    RedisConfig
 	JWT      JWTConfig
-	OpenAI   OpenAIConfig
+	AI       AIConfig
 	Storage  StorageConfig
 }
 
@@ -38,8 +38,11 @@ type JWTConfig struct {
 	RefreshTokenExpiry string
 }
 
-type OpenAIConfig struct {
-	APIKey string
+type AIConfig struct {
+	Provider        string
+	OpenAIKey      string
+	GeminiKey      string
+	AnthropicKey   string
 }
 
 type StorageConfig struct {
@@ -70,8 +73,11 @@ func New() *Config {
 			AccessTokenExpiry:  getEnv("JWT_EXPIRY", "15m"),
 			RefreshTokenExpiry: getEnv("REFRESH_TOKEN_EXPIRY", "7d"),
 		},
-		OpenAI: OpenAIConfig{
-			APIKey: getEnv("OPENAI_API_KEY", ""),
+		AI: AIConfig{
+			Provider:      getEnv("AI_PROVIDER", "openai"),
+			OpenAIKey:    getEnv("OPENAI_API_KEY", ""),
+			GeminiKey:    getEnv("GEMINI_API_KEY", ""),
+			AnthropicKey: getEnv("ANTHROPIC_API_KEY", ""),
 		},
 		Storage: StorageConfig{
 			S3Bucket:  getEnv("S3_BUCKET", ""),

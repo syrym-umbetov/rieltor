@@ -58,6 +58,9 @@ func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
+	// Настройка мониторинга производительности
+	setupPerformanceMonitoring(db)
+
 	log.Println("Database initialized successfully")
 	return db, nil
 }
@@ -180,6 +183,7 @@ func runMigrations(db *gorm.DB) error {
 		&models.ChatMessage{},
 		&models.Campaign{},
 		&models.ParseRequest{},
+		&models.PriorityProperty{},
 	}
 
 	for _, model := range models {
@@ -212,6 +216,120 @@ func runMigrations(db *gorm.DB) error {
 		}
 	}
 
+	// Оптимизация индексов для производительности
+	if err := createOptimizedIndexes(db); err != nil {
+		log.Printf("Warning: Failed to create some indexes: %v", err)
+	}
+
+	// Оптимизация настроек PostgreSQL
+	if err := optimizePostgreSQLSettings(db); err != nil {
+		log.Printf("Warning: Failed to apply some optimizations: %v", err)
+	}
+
 	log.Println("All migrations completed")
 	return nil
+}
+
+// createOptimizedIndexes создает оптимизированные индексы для быстрой работы с чатом
+func createOptimizedIndexes(db *gorm.DB) error {
+	indexes := []string{
+		// Индексы для быстрого поиска сообщений чата
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_messages_session_created ON chat_messages (session_id, created_at DESC)",
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_messages_session_role ON chat_messages (session_id, role, created_at DESC)",
+		
+		// Индексы для быстрого поиска сессий пользователя
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_sessions_user_created ON chat_sessions (user_id, created_at DESC)",
+		
+		// Индексы для пользователей
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email_active ON users (email) WHERE deleted_at IS NULL",
+		
+		// Индексы для парсинга
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_parse_requests_status_created ON parse_requests (status, created_at DESC)",
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_parse_requests_user_created ON parse_requests (user_id, created_at DESC) WHERE user_id IS NOT NULL",
+		
+		// Индексы для свойств
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_user_created ON properties (user_id, created_at DESC) WHERE deleted_at IS NULL",
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_price ON properties (price) WHERE deleted_at IS NULL",
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_city_price ON properties (city, price) WHERE deleted_at IS NULL",
+		
+		// Частичные индексы для активных данных
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_property_views_property_recent ON property_views (property_id, created_at DESC) WHERE created_at > NOW() - INTERVAL '30 days'",
+	}
+	
+	for _, indexSQL := range indexes {
+		if err := db.Exec(indexSQL).Error; err != nil {
+			// Игнорируем ошибки если индекс уже существует
+			log.Printf("Note: Could not create index (may already exist): %v", err)
+		}
+	}
+	
+	log.Println("Optimized indexes created")
+	return nil
+}
+
+// optimizePostgreSQLSettings применяет оптимизации на уровне сессии
+func optimizePostgreSQLSettings(db *gorm.DB) error {
+	optimizations := []string{
+		// Увеличиваем work_mem для сложных запросов
+		"SET work_mem = '16MB'",
+		
+		// Настройки для быстрых соединений
+		"SET join_collapse_limit = 12",
+		"SET from_collapse_limit = 12",
+		
+		// Настройки статистики для лучшего планирования
+		"SET default_statistics_target = 150",
+		
+		// Настройки для быстрых операций с JSON (для метаданных чата)
+		"SET gin_fuzzy_search_limit = 0",
+		
+		// Включаем параллельные запросы если доступно
+		"SET max_parallel_workers_per_gather = 2",
+		"SET parallel_tuple_cost = 0.1",
+		"SET parallel_setup_cost = 1000",
+	}
+	
+	for _, setting := range optimizations {
+		if err := db.Exec(setting).Error; err != nil {
+			log.Printf("Note: Could not apply setting: %s, error: %v", setting, err)
+		}
+	}
+	
+	log.Println("PostgreSQL session optimizations applied")
+	return nil
+}
+
+// setupPerformanceMonitoring настраивает мониторинг производительности
+func setupPerformanceMonitoring(db *gorm.DB) {
+	// Включаем логирование медленных запросов (запросы > 200ms)
+	EnableSlowQueryLogging(db, 200*time.Millisecond)
+	
+	// Создаем монитор производительности
+	monitor := NewPerformanceMonitor(db)
+	
+	// Запускаем базовую оптимизацию
+	go func() {
+		time.Sleep(5 * time.Second) // Даем базе инициализироваться
+		if err := monitor.OptimizeDatabase(); err != nil {
+			log.Printf("Database optimization failed: %v", err)
+		}
+		
+		// Выводим отчет о здоровье базы
+		monitor.LogDatabaseHealth()
+		
+		// Периодически обновляем статистику
+		ticker := time.NewTicker(30 * time.Minute)
+		go func() {
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					monitor.OptimizeDatabase()
+					monitor.LogDatabaseHealth()
+				}
+			}
+		}()
+	}()
+	
+	log.Println("Performance monitoring enabled")
 }

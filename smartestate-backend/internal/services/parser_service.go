@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,14 +20,16 @@ import (
 )
 
 type ParserService struct {
-	db    *gorm.DB
-	debug bool
+	db         *gorm.DB
+	debug      bool
+	maxWorkers int
 }
 
 func NewParserService(db *gorm.DB) *ParserService {
 	return &ParserService{
-		db:    db,
-		debug: true,
+		db:         db,
+		debug:      true,
+		maxWorkers: 12, // Увеличено до 12 параллельных воркеров для максимальной скорости
 	}
 }
 
@@ -42,30 +47,58 @@ func (s *ParserService) ParseProperties(filters models.PropertyFilters, maxPages
 		return nil, fmt.Errorf("failed to create parse request: %w", err)
 	}
 
-	// Запускаем парсинг
-	properties, err := s.parseFromKrisha(filters, maxPages)
-	if err != nil {
-		// Обновляем статус на failed
-		parseRequest.Status = "failed"
-		parseRequest.Error = err.Error()
-		s.db.Save(parseRequest)
-		
-		return &models.ParseResponse{
-			Success:    false,
-			RequestID:  parseRequest.ID,
-			Properties: []models.ParsedProperty{},
-			Count:      0,
-			Status:     "failed",
-			Error:      err.Error(),
-			Cached:     false,
-			ParserType: "selenium",
-		}, err
+	log.Println("Парсим реальные объявления с OLX и Krisha...")
+	
+	var allProperties []models.ParsedProperty
+	var parseErr error
+	
+	// Парсим с OLX (5 объявлений)
+	olxProperties, olxErr := s.parseOlxProperties(filters, maxPages)
+	if olxErr != nil {
+		log.Printf("Ошибка парсинга OLX: %v", olxErr)
+		parseErr = olxErr
+	} else {
+		// Берем максимум 5 объявлений с OLX
+		if len(olxProperties) > 5 {
+			olxProperties = olxProperties[:5]
+		}
+		allProperties = append(allProperties, olxProperties...)
+		log.Printf("Получено %d объявлений с OLX", len(olxProperties))
+	}
+	
+	// Парсим с Krisha (5 объявлений)
+	krishaProperties, krishaErr := s.parseKrishaProperties(filters, maxPages)
+	if krishaErr != nil {
+		log.Printf("Ошибка парсинга Krisha: %v", krishaErr)
+		if parseErr == nil {
+			parseErr = krishaErr
+		}
+	} else {
+		// Берем максимум 5 объявлений с Krisha
+		if len(krishaProperties) > 5 {
+			krishaProperties = krishaProperties[:5]
+		}
+		allProperties = append(allProperties, krishaProperties...)
+		log.Printf("Получено %d объявлений с Krisha", len(krishaProperties))
+	}
+	
+	log.Printf("Всего объявлений: %d", len(allProperties))
+
+	// Проверяем результат парсинга
+	status := "completed"
+	errorMsg := ""
+	
+	if parseErr != nil {
+		status = "failed"
+		errorMsg = parseErr.Error()
+		log.Printf("Ошибка парсинга: %v", parseErr)
 	}
 
 	// Обновляем запись с результатами
-	parseRequest.Status = "completed"
-	parseRequest.Results = models.ParsedPropertySlice(properties)
-	parseRequest.Count = len(properties)
+	parseRequest.Status = status
+	parseRequest.Results = models.ParsedPropertySlice(allProperties)
+	parseRequest.Count = len(allProperties)
+	parseRequest.Error = errorMsg
 	
 	if err := s.db.Save(parseRequest).Error; err != nil {
 		log.Printf("Failed to save parse results: %v", err)
@@ -74,120 +107,425 @@ func (s *ParserService) ParseProperties(filters models.PropertyFilters, maxPages
 	return &models.ParseResponse{
 		Success:    true,
 		RequestID:  parseRequest.ID,
-		Properties: properties,
-		Count:      len(properties),
-		Status:     "completed",
+		Properties: allProperties,
+		Count:      len(allProperties),
+		Status:     status,
+		Error:      errorMsg,
 		Cached:     false,
-		ParserType: "selenium",
+		ParserType: "olx-real",
 	}, nil
 }
 
-// parseFromKrisha парсит недвижимость с сайта krisha.kz
-func (s *ParserService) parseFromKrisha(filters models.PropertyFilters, maxPages int) ([]models.ParsedProperty, error) {
-	wd, err := s.createWebDriver()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create webdriver: %w", err)
+// parseOlxProperties парсит реальную страницу OLX.kz
+func (s *ParserService) parseOlxProperties(filters models.PropertyFilters, maxPages int) ([]models.ParsedProperty, error) {
+	log.Println("Подключаемся к Selenium Grid для парсинга OLX...")
+
+	// Создаем соединение с Selenium Grid
+	caps := selenium.Capabilities{"browserName": "chrome"}
+	caps["goog:chromeOptions"] = map[string]interface{}{
+		"args": []string{
+			"--no-sandbox",
+			"--disable-dev-shm-usage",
+			"--disable-blink-features=AutomationControlled",
+			"--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+		},
 	}
 
-	defer func() {
-		if wd != nil {
-			if s.debug {
-				log.Printf("Closing WebDriver session...")
+	wd, err := selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+	if err != nil {
+		log.Printf("Ошибка подключения к Selenium Grid: %v", err)
+		// Если не можем подключиться к Grid, пробуем локальный
+		wd, err = selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+		if err != nil {
+			return nil, fmt.Errorf("не удалось подключиться к Selenium: %w", err)
+		}
+	}
+	defer wd.Quit()
+
+	// Строим URL для OLX
+	baseURL := "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata/"
+	
+	// Добавляем фильтры к URL
+	urlParams := url.Values{}
+	if filters.PriceMax != nil && *filters.PriceMax > 0 {
+		urlParams.Add("search[filter_float_price:to]", strconv.FormatInt(*filters.PriceMax, 10))
+	}
+	if filters.PriceMin != nil && *filters.PriceMin > 0 {
+		urlParams.Add("search[filter_float_price:from]", strconv.FormatInt(*filters.PriceMin, 10))
+	}
+	if filters.Rooms != nil && *filters.Rooms > 0 {
+		urlParams.Add("search[filter_enum_kolichestvokomnat][0]", strconv.Itoa(*filters.Rooms))
+	}
+
+	fullURL := baseURL
+	if len(urlParams) > 0 {
+		fullURL += "?" + urlParams.Encode()
+	}
+
+	log.Printf("Переходим на страницу: %s", fullURL)
+
+	// Загружаем страницу
+	if err := wd.Get(fullURL); err != nil {
+		return nil, fmt.Errorf("ошибка загрузки страницы OLX: %w", err)
+	}
+
+	// Ждём загрузки страницы
+	time.Sleep(3 * time.Second)
+
+	// Находим все объявления на странице
+	properties, err := s.parseOlxListings(wd)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга объявлений: %w", err)
+	}
+
+	log.Printf("Найдено %d объявлений на OLX", len(properties))
+	return properties, nil
+}
+
+// parseOlxListings извлекает объявления со страницы OLX
+func (s *ParserService) parseOlxListings(wd selenium.WebDriver) ([]models.ParsedProperty, error) {
+	var properties []models.ParsedProperty
+
+	// Ищем контейнеры с объявлениями (может быть несколько селекторов)
+	selectors := []string{
+		"[data-cy='l-card']",
+		".css-1sw7q4x", 
+		"[data-testid='l-card']",
+		".offer-wrapper",
+	}
+
+	var listings []selenium.WebElement
+	var err error
+
+	for _, selector := range selectors {
+		listings, err = wd.FindElements(selenium.ByCSSSelector, selector)
+		if err == nil && len(listings) > 0 {
+			log.Printf("Найдено %d объявлений с селектором: %s", len(listings), selector)
+			break
+		}
+	}
+
+	if len(listings) == 0 {
+		return nil, fmt.Errorf("не найдено объявлений на странице")
+	}
+
+	// Ограничиваем количество объявлений до 5
+	maxListings := 5
+	if len(listings) > maxListings {
+		listings = listings[:maxListings]
+	}
+
+	for i, listing := range listings {
+		property, err := s.extractOlxPropertyData(listing, i+1)
+		if err != nil {
+			log.Printf("Ошибка извлечения данных объявления %d: %v", i+1, err)
+			continue
+		}
+
+		if property != nil {
+			properties = append(properties, *property)
+		}
+	}
+
+	return properties, nil
+}
+
+// extractOlxPropertyData извлекает данные из одного объявления OLX
+func (s *ParserService) extractOlxPropertyData(listing selenium.WebElement, index int) (*models.ParsedProperty, error) {
+	property := &models.ParsedProperty{
+		Currency: "KZT",
+	}
+
+	// Генерируем уникальный ID
+	property.ID = fmt.Sprintf("olx_%d_%d", time.Now().Unix(), index)
+
+	// Извлекаем заголовок
+	titleSelectors := []string{"h6", ".css-16v5mdi h6", "[data-cy='l-card'] h6", "h3", ".title"}
+	for _, selector := range titleSelectors {
+		if element, err := listing.FindElement(selenium.ByCSSSelector, selector); err == nil {
+			if title, err := element.Text(); err == nil && strings.TrimSpace(title) != "" {
+				property.Title = strings.TrimSpace(title)
+				break
 			}
-			wd.Quit()
+		}
+	}
+
+	// Извлекаем цену
+	priceSelectors := []string{"p[data-testid='ad-price']", ".css-10b0gli", "[data-testid='ad-price']", ".price"}
+	for _, selector := range priceSelectors {
+		if element, err := listing.FindElement(selenium.ByCSSSelector, selector); err == nil {
+			if priceText, err := element.Text(); err == nil && strings.TrimSpace(priceText) != "" {
+				property.Price = s.extractPriceFromText(priceText)
+				break
+			}
+		}
+	}
+
+	// Извлекаем ссылку
+	if linkElement, err := listing.FindElement(selenium.ByCSSSelector, "a[href]"); err == nil {
+		if href, err := linkElement.GetAttribute("href"); err == nil {
+			property.URL = href
+		}
+	}
+
+	// Извлекаем локацию/адрес
+	locationSelectors := []string{"[data-testid='location-date']", ".css-veheph", ".location"}
+	for _, selector := range locationSelectors {
+		if element, err := listing.FindElement(selenium.ByCSSSelector, selector); err == nil {
+			if location, err := element.Text(); err == nil && strings.TrimSpace(location) != "" {
+				property.Address = strings.TrimSpace(location)
+				break
+			}
+		}
+	}
+
+	// Если не удалось получить основные данные, пропускаем
+	if property.Title == "" && property.Price == 0 {
+		return nil, nil
+	}
+
+	// Устанавливаем значения по умолчанию
+	if property.Title == "" {
+		property.Title = "Квартира в Алматы"
+	}
+	if property.Address == "" {
+		property.Address = "Алматы"
+	}
+	property.SellerType = "Частное лицо"
+	property.BuildingType = "Жилой дом"
+
+	return property, nil
+}
+
+// extractPriceFromText извлекает цену из текста
+func (s *ParserService) extractPriceFromText(priceText string) int64 {
+	// Убираем пробелы и лишние символы
+	priceText = strings.ReplaceAll(priceText, " ", "")
+	priceText = strings.ReplaceAll(priceText, "тенге", "")
+	priceText = strings.ReplaceAll(priceText, "₸", "")
+	priceText = strings.ReplaceAll(priceText, "тг", "")
+	
+	// Используем регулярное выражение для поиска чисел
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(priceText, -1)
+	
+	if len(numbers) == 0 {
+		return 0
+	}
+	
+	// Соединяем все числа в одну строку (для случая "12 500 000")
+	fullNumber := strings.Join(numbers, "")
+	
+	price, err := strconv.ParseInt(fullNumber, 10, 64)
+	if err != nil {
+		return 0
+	}
+	
+	return price
+}
+
+// parseFromKrisha парсит недвижимость с сайта krisha.kz параллельно
+func (s *ParserService) parseFromKrisha(filters models.PropertyFilters, maxPages int) ([]models.ParsedProperty, error) {
+	if s.debug {
+		log.Printf("Starting parallel parsing with %d workers for %d pages", s.maxWorkers, maxPages)
+	}
+
+	// Создаем контекст с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// Канал для заданий (номера страниц)
+	pageJobs := make(chan int, maxPages)
+	results := make(chan []models.ParsedProperty, maxPages)
+	errors := make(chan error, maxPages)
+
+	// Запускаем воркеры
+	var wg sync.WaitGroup
+	for i := 0; i < s.maxWorkers; i++ {
+		wg.Add(1)
+		go s.pageWorker(ctx, &wg, pageJobs, results, errors, filters)
+	}
+
+	// Отправляем задания воркерам
+	go func() {
+		defer close(pageJobs)
+		for page := 1; page <= maxPages; page++ {
+			select {
+			case pageJobs <- page:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
+	// Ждем завершения всех воркеров
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errors)
+	}()
+
+	// Собираем результаты
 	var allProperties []models.ParsedProperty
+	var lastError error
 
-	for page := 1; page <= maxPages; page++ {
-		searchURL := s.buildSearchURL(filters, page)
-		
-		if s.debug {
-			log.Printf("Parsing page %d: %s", page, searchURL)
-		}
-
-		// Пробуем загрузить страницу с повторными попытками
-		var lastErr error
-		maxRetries := 2
-		
-		for retry := 0; retry <= maxRetries; retry++ {
-			if retry > 0 {
-				if s.debug {
-					log.Printf("Retry %d/%d for page %d", retry, maxRetries, page)
+	for {
+		select {
+		case pageProperties, ok := <-results:
+			if !ok {
+				// Канал закрыт, все воркеры завершились
+				if len(allProperties) == 0 && lastError != nil {
+					return nil, lastError
 				}
-				time.Sleep(time.Duration(retry*2) * time.Second) // Увеличиваем задержку с каждой попыткой
+				return allProperties, nil
 			}
-			
-			lastErr = wd.Get(searchURL)
-			if lastErr == nil {
-				break // Успешно загрузили страницу
-			}
-			
+			allProperties = append(allProperties, pageProperties...)
 			if s.debug {
-				log.Printf("Failed to load page %d (attempt %d/%d): %v", page, retry+1, maxRetries+1, lastErr)
-			}
-		}
-		
-		if lastErr != nil {
-			return nil, fmt.Errorf("failed to load page %d after %d attempts: %w", page, maxRetries+1, lastErr)
-		}
-
-		// Убираем задержки полностью для максимальной скорости
-
-		// Ищем карточки объявлений
-		propertyCards, err := wd.FindElements(selenium.ByCSSSelector, ".ddl_product")
-		if err != nil || len(propertyCards) == 0 {
-			// Пробуем альтернативный селектор
-			propertyCards, err = wd.FindElements(selenium.ByCSSSelector, ".a-card")
-			if err != nil || len(propertyCards) == 0 {
-				log.Printf("No property cards found on page %d", page)
-				break
-			}
-		}
-
-		if s.debug {
-			log.Printf("Found %d property cards on page %d", len(propertyCards), page)
-		}
-
-		// Парсим каждую карточку (максимум 5 для быстрого ответа)
-		maxCards := len(propertyCards)
-		if maxCards > 3 {
-			maxCards = 3 // Уменьшаем до 3 для максимальной скорости
-		}
-
-		for i := 0; i < maxCards; i++ {
-			if s.debug {
-				log.Printf("Parsing property card %d/%d", i+1, maxCards)
+				log.Printf("Collected %d properties from a page, total: %d", len(pageProperties), len(allProperties))
 			}
 			
-			// Попытка парсинга с таймаутом
-			property, err := s.parsePropertyCard(propertyCards[i])
+			// Ограничиваем количество результатов до 5 объявлений для быстроты
+			if len(allProperties) >= 5 {
+				allProperties = allProperties[:5]
+				log.Printf("Reached limit of 5 properties, stopping parsing")
+				return allProperties, nil
+			}
+		case err := <-errors:
 			if err != nil {
-				log.Printf("Error parsing property card %d: %v", i, err)
+				lastError = err
+				log.Printf("Page parsing error: %v", err)
+			}
+		case <-ctx.Done():
+			log.Printf("Parsing context cancelled, returning collected properties: %d", len(allProperties))
+			return allProperties, nil
+		}
+	}
+}
+
+// pageWorker обрабатывает одну страницу
+func (s *ParserService) pageWorker(ctx context.Context, wg *sync.WaitGroup, pageJobs <-chan int, results chan<- []models.ParsedProperty, errors chan<- error, filters models.PropertyFilters) {
+	defer wg.Done()
+
+	// Создаем WebDriver для этого воркера
+	wd, err := s.createWebDriver()
+	if err != nil {
+		select {
+		case errors <- fmt.Errorf("failed to create webdriver: %w", err):
+		case <-ctx.Done():
+		}
+		return
+	}
+	defer wd.Quit()
+
+	for {
+		select {
+		case page, ok := <-pageJobs:
+			if !ok {
+				return // Канал закрыт
+			}
+
+			properties, err := s.parseSinglePage(ctx, wd, filters, page)
+			if err != nil {
+				select {
+				case errors <- err:
+				case <-ctx.Done():
+				}
 				continue
 			}
-			if property != nil {
-				allProperties = append(allProperties, *property)
+
+			select {
+			case results <- properties:
+			case <-ctx.Done():
+				return
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// parseSinglePage парсит одну страницу
+func (s *ParserService) parseSinglePage(ctx context.Context, wd selenium.WebDriver, filters models.PropertyFilters, page int) ([]models.ParsedProperty, error) {
+	searchURL := s.buildSearchURL(filters, page)
+	
+	if s.debug {
+		log.Printf("Worker parsing page %d: %s", page, searchURL)
+	}
+
+	// Пробуем загрузить страницу с повторными попытками
+	var lastErr error
+	maxRetries := 2
+	
+	for retry := 0; retry <= maxRetries; retry++ {
+		if retry > 0 {
+			if s.debug {
+				log.Printf("Retry %d/%d for page %d", retry, maxRetries, page)
+			}
+			select {
+			case <-time.After(time.Duration(retry) * time.Second):
+			case <-ctx.Done():
+				return nil, ctx.Err()
 			}
 		}
-
-		// Проверяем наличие следующей страницы
-		nextButtons, err := wd.FindElements(selenium.ByCSSSelector, ".paging .next")
-		if err != nil || len(nextButtons) == 0 {
-			break
+		
+		lastErr = wd.Get(searchURL)
+		if lastErr == nil {
+			break // Успешно загрузили страницу
 		}
+		
+		if s.debug {
+			log.Printf("Failed to load page %d (attempt %d/%d): %v", page, retry+1, maxRetries+1, lastErr)
+		}
+	}
+	
+	if lastErr != nil {
+		return nil, fmt.Errorf("failed to load page %d after %d attempts: %w", page, maxRetries+1, lastErr)
+	}
 
-		// Проверяем активность кнопки "Далее"
-		if len(nextButtons) > 0 {
-			isEnabled, err := nextButtons[0].IsEnabled()
-			if err != nil || !isEnabled {
-				break
+	// Ищем карточки объявлений
+	propertyCards, err := wd.FindElements(selenium.ByCSSSelector, ".ddl_product")
+	if err != nil || len(propertyCards) == 0 {
+		// Пробуем альтернативный селектор
+		propertyCards, err = wd.FindElements(selenium.ByCSSSelector, ".a-card")
+		if err != nil || len(propertyCards) == 0 {
+			if s.debug {
+				log.Printf("No property cards found on page %d", page)
 			}
+			return []models.ParsedProperty{}, nil
 		}
 	}
 
-	return allProperties, nil
+	if s.debug {
+		log.Printf("Found %d property cards on page %d", len(propertyCards), page)
+	}
+
+	// Парсим все карточки на странице
+	var properties []models.ParsedProperty
+	maxCards := len(propertyCards)
+	if maxCards > 5 { // Ограничиваем до 5 карточек для быстроты
+		maxCards = 5
+	}
+
+	for i := 0; i < maxCards; i++ {
+		select {
+		case <-ctx.Done():
+			return properties, ctx.Err()
+		default:
+		}
+
+		// Попытка парсинга с таймаутом
+		property, err := s.parsePropertyCard(propertyCards[i])
+		if err != nil {
+			log.Printf("Error parsing property card %d on page %d: %v", i, page, err)
+			continue
+		}
+		if property != nil {
+			properties = append(properties, *property)
+		}
+	}
+
+	return properties, nil
 }
 
 // parsePropertyCard парсит одну карточку объявления
@@ -208,6 +546,9 @@ func (s *ParserService) parsePropertyCard(card selenium.WebElement) (*models.Par
 	property.URL, err = titleElement.GetAttribute("href")
 	if err != nil {
 		property.URL = ""
+	} else if property.URL != "" && !strings.HasPrefix(property.URL, "http") {
+		// Конвертируем относительный URL в полный URL OLX
+		property.URL = "https://www.olx.kz" + property.URL
 	}
 
 	// ID из URL
@@ -218,7 +559,7 @@ func (s *ParserService) parsePropertyCard(card selenium.WebElement) (*models.Par
 		}
 	}
 	if property.ID == "" {
-		property.ID = fmt.Sprintf("krisha_%d", time.Now().Unix())
+		property.ID = fmt.Sprintf("olx_%d", time.Now().Unix())
 	}
 
 	// Цена - детальное логирование для отладки
@@ -260,17 +601,13 @@ func (s *ParserService) parsePropertyCard(card selenium.WebElement) (*models.Par
 		}
 	}
 
-	// Изображения - ищем картинки с любого домена
+	// Изображения - быстрый поиск без улучшения качества
 	imageElement, err := card.FindElement(selenium.ByCSSSelector, "img")
 	if err == nil {
 		src, err := imageElement.GetAttribute("src")
 		if err == nil && src != "" && (strings.Contains(src, "alakcell-photos") || strings.Contains(src, "krisha")) {
-			if s.debug {
-				log.Printf("Found image: %s", src)
-			}
-			// Улучшаем качество фото до 750x470
-			betterSrc := s.enhanceImageQuality(src)
-			property.Images = append(property.Images, betterSrc)
+			// Используем оригинальное изображение для скорости
+			property.Images = append(property.Images, src)
 		}
 	}
 
@@ -522,6 +859,17 @@ func (s *ParserService) createWebDriver() (selenium.WebDriver, error) {
 						"--disable-dev-shm-usage",
 						"--disable-blink-features=AutomationControlled",
 						"--window-size=1280,720",
+						"--memory-pressure-off", // Отключаем управление памятью для скорости
+						"--max-old-space-size=4096", // Увеличиваем память
+						"--disable-background-timer-throttling", // Отключаем троттлинг
+						"--disable-renderer-backgrounding",
+						"--disable-backgrounding-occluded-windows",
+					},
+					"prefs": map[string]interface{}{
+						"dom.webdriver.enabled": false,
+						"useAutomationExtension": false,
+						"media.navigator.enabled": false,
+						"media.peerconnection.enabled": false,
 					},
 				},
 			},
@@ -533,7 +881,7 @@ func (s *ParserService) createWebDriver() (selenium.WebDriver, error) {
 				"platformName": "linux",
 				"goog:chromeOptions": map[string]interface{}{
 					"args": []string{
-						"--headless",
+						"--headless=new", // Новый headless режим Chrome
 						"--no-sandbox",
 						"--disable-gpu",
 						"--disable-dev-shm-usage",
@@ -541,7 +889,32 @@ func (s *ParserService) createWebDriver() (selenium.WebDriver, error) {
 						"--window-size=1280,720",
 						"--disable-web-security",
 						"--disable-features=VizDisplayCompositor",
+						"--memory-pressure-off", // Отключаем управление памятью для скорости
+						"--max-old-space-size=4096", // Увеличиваем память
+						"--disable-background-timer-throttling", // Отключаем троттлинг
+						"--disable-renderer-backgrounding",
+						"--disable-backgrounding-occluded-windows",
+						"--disable-ipc-flooding-protection", // Отключаем защиту от флуда IPC
+						"--disable-hang-monitor", // Отключаем монитор зависания
+						"--disable-prompt-on-repost", // Отключаем промпты
+						"--disable-component-update", // Отключаем обновление компонентов
+						"--disable-default-apps", // Отключаем дефолтные приложения
+						"--disable-domain-reliability", // Отключаем domain reliability
+						"--disable-extensions", // Отключаем расширения
+						"--disable-features=TranslateUI,BlinkGenPropertyTrees", // Отключаем лишние функции
+						"--disable-notifications", // Отключаем уведомления
+						"--disable-sync", // Отключаем синхронизацию
+						"--no-first-run", // Убираем первый запуск
+						"--no-default-browser-check", // Убираем проверку браузера по умолчанию
+						"--aggressive-cache-discard", // Агрессивная очистка кеша
 					},
+					"prefs": map[string]interface{}{
+						"profile.default_content_setting_values.notifications": 2,
+						"profile.default_content_settings.popups": 0,
+						"profile.managed_default_content_settings.images": 2, // Отключаем загрузку изображений для скорости
+					},
+					"excludeSwitches": []string{"enable-automation"},
+					"useAutomationExtension": false,
 				},
 			},
 		},
@@ -584,4 +957,713 @@ func (s *ParserService) GetParseRequest(requestID uuid.UUID) (*models.ParseReque
 	var request models.ParseRequest
 	err := s.db.Where("id = ?", requestID).First(&request).Error
 	return &request, err
+}
+
+// getPriorityKrishaProperties получает приоритетные объявления из базы данных
+func (s *ParserService) getPriorityKrishaProperties() []models.ParsedProperty {
+	var priorityProperties []models.PriorityProperty
+	
+	// Получаем активные приоритетные объявления из базы
+	err := s.db.Where("is_active = ? AND source = ?", true, "krisha").Find(&priorityProperties).Error
+	if err != nil {
+		log.Printf("Failed to fetch priority properties from database: %v", err)
+		return []models.ParsedProperty{}
+	}
+	
+	// Если в базе нет данных, парсим и сохраняем
+	if len(priorityProperties) == 0 {
+		log.Println("No priority properties found in database, parsing and saving...")
+		s.parseAndSavePriorityProperties()
+		
+		// Повторно загружаем из базы
+		err := s.db.Where("is_active = ? AND source = ?", true, "krisha").Find(&priorityProperties).Error
+		if err != nil {
+			log.Printf("Failed to fetch priority properties after parsing: %v", err)
+			return []models.ParsedProperty{}
+		}
+	}
+	
+	// Конвертируем в ParsedProperty
+	var properties []models.ParsedProperty
+	for _, priority := range priorityProperties {
+		properties = append(properties, priority.ToParseProperty())
+	}
+	
+	return properties
+}
+
+// parseAndSavePriorityProperties парсит и сохраняет приоритетные объявления один раз
+func (s *ParserService) parseAndSavePriorityProperties() {
+	priorityIDs := []string{"696103151", "1000746308"}
+	
+	for _, id := range priorityIDs {
+		// Проверяем, не существует ли уже в базе
+		var existing models.PriorityProperty
+		err := s.db.Where("external_id = ? AND source = ?", id, "krisha").First(&existing).Error
+		if err == nil {
+			log.Printf("Priority property %s already exists in database", id)
+			continue
+		}
+		
+		// Парсим объявление
+		parsedProperty := s.parseKrishaPropertyByID(id)
+		if parsedProperty == nil {
+			log.Printf("Failed to parse priority property %s", id)
+			continue
+		}
+		
+		// Конвертируем в модель базы данных
+		priorityProperty := &models.PriorityProperty{
+			ExternalID:  parsedProperty.ID,
+			Source:      "krisha",
+			Title:       parsedProperty.Title,
+			Description: parsedProperty.Description,
+			Price:       parsedProperty.Price,
+			Currency:    parsedProperty.Currency,
+			Address:     parsedProperty.Address,
+			City:        "Алматы", // Static city for priority properties
+			Rooms:       parsedProperty.Rooms,
+			Area:        parsedProperty.Area,
+			Floor:       parsedProperty.Floor,
+			TotalFloors: parsedProperty.TotalFloors,
+			BuildYear:   parsedProperty.BuildYear,
+			URL:         parsedProperty.URL,
+			Phone:       parsedProperty.Phone,
+			IsActive:    true,
+		}
+		
+		// Сохраняем изображения в JSON
+		if len(parsedProperty.Images) > 0 {
+			imagesJSON, _ := json.Marshal(parsedProperty.Images)
+			priorityProperty.Images = imagesJSON
+		}
+		
+		// Сохраняем в базу
+		if err := s.db.Create(priorityProperty).Error; err != nil {
+			log.Printf("Failed to save priority property %s: %v", id, err)
+		} else {
+			log.Printf("Successfully saved priority property %s", id)
+		}
+	}
+}
+
+// parseKrishaPropertyByID парсит конкретное объявление с Krisha по ID
+func (s *ParserService) parseKrishaPropertyByID(propertyID string) *models.ParsedProperty {
+	url := fmt.Sprintf("https://krisha.kz/a/show/%s", propertyID)
+	
+	wd, err := s.createWebDriver()
+	if err != nil {
+		log.Printf("Failed to create WebDriver for priority property %s: %v", propertyID, err)
+		return nil
+	}
+	defer wd.Quit()
+	
+	err = wd.Get(url)
+	if err != nil {
+		log.Printf("Failed to load priority property %s: %v", propertyID, err)
+		return nil
+	}
+	
+	// Парсим основную информацию
+	property := &models.ParsedProperty{
+		ID:  propertyID,
+		URL: url,
+	}
+	
+	// Заголовок
+	if titleElement, err := wd.FindElement(selenium.ByCSSSelector, "h1.offer__advert-title"); err == nil {
+		if title, err := titleElement.Text(); err == nil {
+			property.Title = strings.TrimSpace(title)
+		}
+	}
+	
+	// Цена
+	if priceElement, err := wd.FindElement(selenium.ByCSSSelector, ".offer__price"); err == nil {
+		if priceText, err := priceElement.Text(); err == nil {
+			property.Price, property.Currency = s.parsePrice(priceText)
+		}
+	}
+	
+	// Адрес
+	if addressElement, err := wd.FindElement(selenium.ByCSSSelector, ".offer__location"); err == nil {
+		if address, err := addressElement.Text(); err == nil {
+			property.Address = strings.TrimSpace(address)
+		}
+	}
+	
+	// Описание
+	if descElement, err := wd.FindElement(selenium.ByCSSSelector, ".offer__description"); err == nil {
+		if desc, err := descElement.Text(); err == nil {
+			property.Description = strings.TrimSpace(desc)
+		}
+	}
+	
+	// Изображения
+	if images, err := wd.FindElements(selenium.ByCSSSelector, ".gallery__image img"); err == nil {
+		for _, img := range images {
+			if src, err := img.GetAttribute("src"); err == nil && src != "" {
+				property.Images = append(property.Images, src)
+			}
+		}
+	}
+	
+	return property
+}
+
+// parseFromOLX парсит недвижимость с сайта OLX.kz
+func (s *ParserService) parseFromOLX(filters models.PropertyFilters, maxPages int) ([]models.ParsedProperty, error) {
+	if s.debug {
+		log.Printf("Starting OLX parsing with %d workers for %d pages", s.maxWorkers, maxPages)
+	}
+
+	// Создаем контекст с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	// Канал для заданий (номера страниц)
+	pageJobs := make(chan int, maxPages)
+	results := make(chan []models.ParsedProperty, maxPages)
+	errors := make(chan error, maxPages)
+
+	// Запускаем воркеры для OLX (меньше воркеров, так как OLX может банить)
+	var wg sync.WaitGroup
+	olxWorkers := s.maxWorkers / 3 // Используем треть от общего количества воркеров
+	if olxWorkers < 1 {
+		olxWorkers = 1
+	}
+	
+	for i := 0; i < olxWorkers; i++ {
+		wg.Add(1)
+		go s.olxPageWorker(ctx, &wg, pageJobs, results, errors, filters)
+	}
+
+	// Отправляем задания воркерам
+	go func() {
+		defer close(pageJobs)
+		for page := 1; page <= maxPages; page++ {
+			select {
+			case pageJobs <- page:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Ждем завершения всех воркеров
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errors)
+	}()
+
+	// Собираем результаты
+	var allProperties []models.ParsedProperty
+	var lastError error
+
+	for {
+		select {
+		case pageProperties, ok := <-results:
+			if !ok {
+				// Канал закрыт, все воркеры завершились
+				if len(allProperties) == 0 && lastError != nil {
+					return nil, lastError
+				}
+				return allProperties, nil
+			}
+			allProperties = append(allProperties, pageProperties...)
+			if s.debug {
+				log.Printf("OLX: Collected %d properties from a page, total: %d", len(pageProperties), len(allProperties))
+			}
+			
+			// Ограничиваем количество результатов до 5 объявлений для быстроты
+			if len(allProperties) >= 5 {
+				allProperties = allProperties[:5]
+				log.Printf("OLX: Reached limit of 5 properties, stopping parsing")
+				return allProperties, nil
+			}
+		case err := <-errors:
+			if err != nil {
+				lastError = err
+				log.Printf("OLX page parsing error: %v", err)
+			}
+		case <-ctx.Done():
+			log.Printf("OLX parsing context cancelled, returning collected properties: %d", len(allProperties))
+			return allProperties, nil
+		}
+	}
+}
+
+// olxPageWorker обрабатывает одну страницу OLX
+func (s *ParserService) olxPageWorker(ctx context.Context, wg *sync.WaitGroup, pageJobs <-chan int, results chan<- []models.ParsedProperty, errors chan<- error, filters models.PropertyFilters) {
+	defer wg.Done()
+
+	// Создаем WebDriver для этого воркера
+	wd, err := s.createWebDriver()
+	if err != nil {
+		select {
+		case errors <- fmt.Errorf("OLX: failed to create webdriver: %w", err):
+		case <-ctx.Done():
+		}
+		return
+	}
+	defer wd.Quit()
+
+	for {
+		select {
+		case page, ok := <-pageJobs:
+			if !ok {
+				return // Канал закрыт
+			}
+
+			properties, err := s.parseOLXSinglePage(ctx, wd, filters, page)
+			if err != nil {
+				select {
+				case errors <- err:
+				case <-ctx.Done():
+				}
+				continue
+			}
+
+			select {
+			case results <- properties:
+			case <-ctx.Done():
+				return
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// parseOLXSinglePage парсит одну страницу объявлений с OLX
+func (s *ParserService) parseOLXSinglePage(ctx context.Context, wd selenium.WebDriver, filters models.PropertyFilters, page int) ([]models.ParsedProperty, error) {
+	// Строим URL для OLX с фильтрами
+	baseURL := "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata/"
+	params := url.Values{}
+	
+	// Добавляем фильтры
+	if filters.PriceMax != nil && *filters.PriceMax > 0 {
+		params.Add("search[filter_float_price:to]", fmt.Sprintf("%.0f", *filters.PriceMax))
+	}
+	if filters.Rooms != nil && *filters.Rooms > 0 {
+		params.Add("search[filter_enum_kolichestvokomnat][0]", fmt.Sprintf("%d", *filters.Rooms))
+	}
+	if page > 1 {
+		params.Add("page", fmt.Sprintf("%d", page))
+	}
+	
+	fullURL := baseURL
+	if len(params) > 0 {
+		fullURL += "?" + params.Encode()
+	}
+	
+	if s.debug {
+		log.Printf("OLX: Loading page %d: %s", page, fullURL)
+	}
+	
+	err := wd.Get(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("OLX: failed to load page %d: %w", page, err)
+	}
+	
+	// Ждем загрузки объявлений
+	time.Sleep(2 * time.Second)
+	
+	// Парсим объявления
+	return s.parseOLXProperties(wd)
+}
+
+// parseOLXProperties парсит объявления с текущей страницы OLX
+func (s *ParserService) parseOLXProperties(wd selenium.WebDriver) ([]models.ParsedProperty, error) {
+	var properties []models.ParsedProperty
+	
+	// Получаем заголовок страницы для отладки
+	pageTitle, _ := wd.Title()
+	log.Printf("🔍 OLX: Заголовок страницы: %s", pageTitle)
+	
+	// Получаем текущий URL для отладки
+	currentURL, _ := wd.CurrentURL()
+	log.Printf("🔍 OLX: Текущий URL: %s", currentURL)
+	
+	// Проверим разные селекторы для поиска карточек
+	selectors := []string{
+		"[data-cy='l-card']", 
+		".css-1sw7q4x", 
+		"[data-testid='l-card']",
+		".offer-wrapper",
+		".listing",
+		"article",
+	}
+	
+	var cards []selenium.WebElement
+	
+	for _, selector := range selectors {
+		cards, _ = wd.FindElements(selenium.ByCSSSelector, selector)
+		log.Printf("🔍 OLX: Пробуем селектор '%s' - найдено %d элементов", selector, len(cards))
+		if len(cards) > 0 {
+			break
+		}
+	}
+	
+	if len(cards) == 0 {
+		// Получим HTML страницы для диагностики
+		pageSource, _ := wd.PageSource()
+		maxLen := 500
+		if len(pageSource) < maxLen {
+			maxLen = len(pageSource)
+		}
+		log.Printf("🔍 OLX: HTML страницы (первые 500 символов): %s", pageSource[:maxLen])
+		return nil, fmt.Errorf("не найдено объявлений на странице")
+	}
+	
+	log.Printf("🔍 OLX: Найдено %d карточек объявлений", len(cards))
+	
+	maxCards := len(cards)
+	if maxCards > 5 { // Ограничиваем до 5 карточек для быстроты
+		maxCards = 5
+	}
+	
+	for i := 0; i < maxCards; i++ {
+		card := cards[i]
+		property := models.ParsedProperty{}
+		
+		// URL объявления
+		if linkElement, err := card.FindElement(selenium.ByCSSSelector, "a"); err == nil {
+			if href, err := linkElement.GetAttribute("href"); err == nil {
+				property.URL = href
+				// Извлекаем ID из URL
+				if urlParts := strings.Split(href, "-ID"); len(urlParts) > 1 {
+					idPart := strings.Split(urlParts[1], ".")[0]
+					property.ID = "olx_" + idPart
+				}
+			}
+		}
+		
+		// Заголовок
+		if titleElement, err := card.FindElement(selenium.ByCSSSelector, "h6"); err == nil {
+			if title, err := titleElement.Text(); err == nil {
+				property.Title = strings.TrimSpace(title)
+			}
+		}
+		
+		// Цена
+		if priceElement, err := card.FindElement(selenium.ByCSSSelector, "p[data-testid='ad-price']"); err == nil {
+			if priceText, err := priceElement.Text(); err == nil {
+				property.Price, property.Currency = s.parsePrice(priceText)
+			}
+		}
+		
+		// Адрес/локация
+		if locationElement, err := card.FindElement(selenium.ByCSSSelector, "p[data-testid='location-date']"); err == nil {
+			if location, err := locationElement.Text(); err == nil {
+				property.Address = strings.TrimSpace(strings.Split(location, " - ")[0])
+			}
+		}
+		
+		// Изображение
+		if imgElement, err := card.FindElement(selenium.ByCSSSelector, "img"); err == nil {
+			if src, err := imgElement.GetAttribute("src"); err == nil && src != "" {
+				property.Images = []string{src}
+			}
+		}
+		
+		// Пропускаем объявления без основной информации
+		if property.Title != "" && property.Price > 0 {
+			properties = append(properties, property)
+		}
+	}
+	
+	if s.debug {
+		log.Printf("OLX: Successfully parsed %d properties", len(properties))
+	}
+	
+	return properties, nil
+}
+
+// createDemoProperties создает демо-объявления когда парсинг недоступен
+func (s *ParserService) createDemoProperties() []models.ParsedProperty {
+	rooms2 := 2
+	area70 := 70.0
+	area85 := 85.0
+	floor5 := 5
+	floor3 := 3
+	floors9 := 9
+	floors12 := 12
+	year2020 := 2020
+	year2018 := 2018
+	
+	return []models.ParsedProperty{
+		{
+			ID:          "demo_priority_1",
+			Title:       "🏠 Приоритетная 2-комн квартира в ЖК Алмалы",
+			Description: "Уютная двухкомнатная квартира в престижном районе. Развитая инфраструктура, близко к метро и торговым центрам. Квартира в отличном состоянии, с современным ремонтом.",
+			Price:       18500000,
+			Currency:    "KZT",
+			Address:     "ул. Толе би, 123, Алматы",
+			Rooms:       &rooms2,
+			Area:        &area70,
+			Floor:       &floor5,
+			TotalFloors: &floors9,
+			BuildYear:   &year2020,
+			Images:      []string{"https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400", "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400"},
+			URL:         "https://krisha.kz/a/show/696103151",
+			Phone:       "+7 (777) 123-45-67",
+			IsNewBuilding: true,
+			BuildingType: "Многоквартирный дом",
+			SellerType:   "Собственник",
+		},
+		{
+			ID:          "demo_priority_2", 
+			Title:       "🏠 Приоритетная 2-комн квартира в центре",
+			Description: "Просторная квартира в самом центре Алматы. Панорамные окна, качественная отделка, паркинг. Рядом парк, школы, больницы. Идеально для семьи.",
+			Price:       22000000,
+			Currency:    "KZT",
+			Address:     "пр. Абая, 150, Алматы", 
+			Rooms:       &rooms2,
+			Area:        &area85,
+			Floor:       &floor3,
+			TotalFloors: &floors12,
+			BuildYear:   &year2018,
+			Images:      []string{"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400"},
+			URL:         "https://krisha.kz/a/show/1000746308",
+			Phone:       "+7 (777) 987-65-43",
+			IsNewBuilding: false,
+			BuildingType: "Многоквартирный дом",
+			SellerType:   "Собственник",
+		},
+	}
+}
+
+// parseKrishaProperties парсит объявления с Krisha.kz
+func (s *ParserService) parseKrishaProperties(filters models.PropertyFilters, maxPages int) ([]models.ParsedProperty, error) {
+	log.Println("Подключаемся к Selenium Grid для парсинга Krisha...")
+	
+	caps := selenium.Capabilities{"browserName": "chrome"}
+	caps["goog:chromeOptions"] = map[string]interface{}{
+		"args": []string{
+			"--no-sandbox",
+			"--disable-dev-shm-usage",
+			"--disable-blink-features=AutomationControlled",
+			"--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		},
+	}
+
+	wd, err := selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+	if err != nil {
+		log.Printf("Ошибка подключения к Selenium Grid: %v", err)
+		// Если не можем подключиться к Grid, пробуем локальный
+		wd, err = selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+		if err != nil {
+			return nil, fmt.Errorf("не удалось подключиться к Selenium: %w", err)
+		}
+	}
+	defer wd.Quit()
+
+	// Строим URL для Krisha
+	baseURL := "https://krisha.kz/prodazha/kvartiry/"
+	
+	// Добавляем фильтры к URL
+	urlParams := url.Values{}
+	if filters.PriceMax != nil && *filters.PriceMax > 0 {
+		urlParams.Add("price[max]", strconv.FormatInt(*filters.PriceMax, 10))
+	}
+	if filters.PriceMin != nil && *filters.PriceMin > 0 {
+		urlParams.Add("price[min]", strconv.FormatInt(*filters.PriceMin, 10))
+	}
+	if filters.Rooms != nil && *filters.Rooms > 0 {
+		urlParams.Add("rooms[]", strconv.Itoa(*filters.Rooms))
+	}
+	// Добавляем город Алматы
+	urlParams.Add("city", "1")
+
+	fullURL := baseURL
+	if len(urlParams) > 0 {
+		fullURL += "?" + urlParams.Encode()
+	}
+	
+	log.Printf("Парсим Krisha URL: %s", fullURL)
+	
+	if err := wd.Get(fullURL); err != nil {
+		return nil, fmt.Errorf("не удалось загрузить страницу Krisha: %w", err)
+	}
+
+	// Ждем загрузки страницы
+	time.Sleep(3 * time.Second)
+
+	// Ищем объявления на Krisha
+	elements, err := wd.FindElements(selenium.ByCSSSelector, ".a-card")
+	if err != nil {
+		log.Printf("Не найдены объявления на Krisha: %v", err)
+		return []models.ParsedProperty{}, nil
+	}
+
+	log.Printf("Найдено %d объявлений на Krisha", len(elements))
+
+	var properties []models.ParsedProperty
+	count := 0
+
+	for i, element := range elements {
+		if count >= 5 { // Берем максимум 5 объявлений
+			break
+		}
+
+		log.Printf("Обрабатываем объявление Krisha %d/%d", i+1, len(elements))
+		
+		property := s.parseKrishaPropertyCard(element, i+1)
+		if property.ID != "" {
+			properties = append(properties, property)
+			count++
+		}
+	}
+
+	log.Printf("Успешно спарсено %d объявлений с Krisha", len(properties))
+	return properties, nil
+}
+
+// parseKrishaPropertyCard парсит одну карточку объявления с Krisha
+func (s *ParserService) parseKrishaPropertyCard(element selenium.WebElement, index int) models.ParsedProperty {
+	property := models.ParsedProperty{}
+
+	log.Printf("🔍 Krisha: Обрабатываем объявление %d", index)
+
+	// Заголовок - пробуем разные селекторы
+	titleSelectors := []string{
+		".a-card__title a",
+		".a-card__title",
+		"[data-name='title'] a",
+		"[data-name='title']",
+		".title a",
+		".title",
+		"h3 a",
+		"h3",
+		"a[href*='/show/']",
+	}
+	
+	var titleElement selenium.WebElement
+	var err error
+	for i, selector := range titleSelectors {
+		titleElement, err = element.FindElement(selenium.ByCSSSelector, selector)
+		log.Printf("🔍 Krisha: Заголовок селектор %d (%s): %s", i+1, selector, func() string {
+			if err != nil {
+				return "не найден"
+			}
+			return "найден"
+		}())
+		if err == nil {
+			break
+		}
+	}
+	
+	if err != nil {
+		log.Printf("❌ Krisha: Не найден заголовок для объявления %d после всех попыток", index)
+		
+		// Получим HTML элемента для анализа
+		elementHTML, _ := element.GetAttribute("outerHTML")
+		if elementHTML != "" {
+			// Обрежем HTML до разумного размера
+			maxLen := 500
+			if len(elementHTML) > maxLen {
+				elementHTML = elementHTML[:maxLen] + "..."
+			}
+			log.Printf("🔍 Krisha: HTML элемента %d: %s", index, elementHTML)
+		}
+		return property
+	}
+
+	property.Title, err = titleElement.Text()
+	if err != nil {
+		log.Printf("❌ Krisha: Ошибка получения текста заголовка: %v", err)
+		return property
+	}
+	log.Printf("✅ Krisha: Заголовок: %s", property.Title)
+
+	property.URL, err = titleElement.GetAttribute("href")
+	if err != nil {
+		property.URL = ""
+	} else if property.URL != "" && !strings.HasPrefix(property.URL, "http") {
+		// Конвертируем относительный URL в полный URL Krisha
+		property.URL = "https://krisha.kz" + property.URL
+	}
+
+	// ID из URL
+	if property.URL != "" {
+		parts := strings.Split(property.URL, "/")
+		if len(parts) > 0 {
+			property.ID = strings.Split(parts[len(parts)-1], "?")[0]
+		}
+	}
+	if property.ID == "" {
+		property.ID = fmt.Sprintf("krisha_%d", time.Now().Unix())
+	}
+
+	// Цена - пробуем разные селекторы
+	priceSelectors := []string{
+		".a-card__price",
+		"[data-name='price']",
+		".price",
+		".cost",
+		"span[class*='price']",
+		"div[class*='price']",
+		".ddl_price",
+	}
+	
+	var priceElement selenium.WebElement
+	for i, selector := range priceSelectors {
+		priceElement, err = element.FindElement(selenium.ByCSSSelector, selector)
+		log.Printf("🔍 Krisha: Цена селектор %d (%s): %s", i+1, selector, func() string {
+			if err != nil {
+				return "не найден"
+			}
+			return "найден"
+		}())
+		if err == nil {
+			break
+		}
+	}
+	
+	if err == nil {
+		priceText, _ := priceElement.Text()
+		log.Printf("🔍 Krisha: Текст цены: '%s'", priceText)
+		if priceText != "" {
+			// Убираем все кроме цифр
+			re := regexp.MustCompile(`[^\d]`)
+			priceStr := re.ReplaceAllString(priceText, "")
+			if price, err := strconv.ParseInt(priceStr, 10, 64); err == nil {
+				property.Price = price
+				log.Printf("✅ Krisha: Цена: %d", price)
+			}
+		}
+	} else {
+		log.Printf("❌ Krisha: Цена не найдена")
+	}
+	property.Currency = "KZT"
+
+	// Адрес
+	addressElement, err := element.FindElement(selenium.ByCSSSelector, ".a-card__subtitle")
+	if err == nil {
+		property.Address, _ = addressElement.Text()
+	}
+
+	// Описание из заголовка
+	property.Description = property.Title
+
+	// Изображения
+	imgElement, err := element.FindElement(selenium.ByCSSSelector, ".a-card__image img")
+	if err == nil {
+		imgSrc, _ := imgElement.GetAttribute("src")
+		if imgSrc != "" {
+			if !strings.HasPrefix(imgSrc, "http") {
+				imgSrc = "https://krisha.kz" + imgSrc
+			}
+			property.Images = []string{imgSrc}
+		}
+	}
+
+	// Дополнительные поля
+	property.IsNewBuilding = false
+	property.BuildingType = "Многоквартирный дом"
+	property.SellerType = "Неизвестно"
+
+	return property
 }

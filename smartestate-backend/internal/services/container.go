@@ -30,10 +30,12 @@ func NewContainer(db *gorm.DB, redis *redis.Client, cfg *config.Config) *Contain
 	targetingService := NewTargetingService(db, redis, cfg)
 	analyticsService := NewAnalyticsService(db, redis)
 	parserService := NewParserService(db)
+	krishaFilterService := NewKrishaFilterService()
 
 	// Set up AI service integrations
 	aiService.SetParserService(parserService)
 	aiService.SetChatService(chatService)
+	aiService.SetKrishaFilterService(krishaFilterService)
 
 	return &Container{
 		Auth:      authService,
