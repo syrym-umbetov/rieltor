@@ -1,0 +1,14 @@
+# URL объявлений OLX для тестирования парсера
+# Дата: 2025-09-17T05:41:30.280Z
+# Всего URL: 10 (из 21 найденных)
+
+https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html
+https://olx.kz/d/obyavlenie/prodam-kvartiru-v-kapchagae-IDoDWLP.html
+https://olx.kz/d/obyavlenie/mikrorayon-bostandykskiy-zhk-askar-tau-IDqg1hu.html
+https://olx.kz/d/obyavlenie/prodam-kvartiru-IDoQSJJ.html
+https://olx.kz/d/obyavlenie/ryskulova-emtsova-1-komnatnaya-kokoray-IDqgyrE.html
+https://olx.kz/d/obyavlenie/prodaetsya-2-komnat-kvartira-ryskulova-emtsova-IDqbVOY.html
+https://olx.kz/d/obyavlenie/srochno-prodam-2-obychnoy-planirovki-kvartiru-mkr-aynabulak-1-IDqgoSM.html
+https://olx.kz/d/obyavlenie/prodaetsya-2-kom-kvartira-mkr-zhuldyz-2-IDq4KRD.html
+https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqbez9.html
+https://olx.kz/d/obyavlenie/2-komnatnaya-kvartira-66-m-v-mikrorayone-kokzhiek-d-36-IDq0kps.html

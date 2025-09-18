@@ -19,7 +19,9 @@ import {
     Clear,
     Share,
     Download,
-    Compare
+    Compare,
+    Phone,
+    SmartToy
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -35,6 +37,7 @@ interface PropertySelectionPanelProps {
     onRemoveProperty: (id: string | number) => void
     expanded?: boolean
     onToggleExpand?: () => void
+    onStartNegotiation?: () => void
 }
 
 export default function PropertySelectionPanel({
@@ -42,7 +45,8 @@ export default function PropertySelectionPanel({
     onClearAll,
     onRemoveProperty,
     expanded = false,
-    onToggleExpand
+    onToggleExpand,
+    onStartNegotiation
 }: PropertySelectionPanelProps) {
     if (selectedProperties.length === 0) {
         return null
@@ -115,6 +119,29 @@ export default function PropertySelectionPanel({
                         {/* Быстрые действия */}
                         {!expanded && (
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <Tooltip title="🤖 Договориться с продавцами">
+                                    <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onStartNegotiation?.()
+                                        }}
+                                        sx={{
+                                            color: 'white',
+                                            bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(255, 255, 255, 0.3)',
+                                                transform: 'scale(1.1)'
+                                            },
+                                            width: 32,
+                                            height: 32,
+                                            border: '1px solid rgba(255, 255, 255, 0.3)'
+                                        }}
+                                    >
+                                        <SmartToy sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                </Tooltip>
+
                                 <Tooltip title="Поделиться">
                                     <IconButton
                                         size="small"
@@ -247,6 +274,30 @@ export default function PropertySelectionPanel({
 
                         {/* Действия */}
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Button
+                                variant="contained"
+                                startIcon={<SmartToy />}
+                                onClick={onStartNegotiation}
+                                sx={{
+                                    bgcolor: 'rgba(16, 185, 129, 0.9)', // Green color for AI negotiation
+                                    color: 'white',
+                                    '&:hover': {
+                                        bgcolor: 'rgba(16, 185, 129, 1)',
+                                        transform: 'translateY(-1px)',
+                                        boxShadow: '0 8px 16px rgba(16, 185, 129, 0.4)'
+                                    },
+                                    borderRadius: 2,
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    px: 3,
+                                    py: 1,
+                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                🤖 Договориться с продавцами
+                            </Button>
+
                             <Button
                                 variant="contained"
                                 startIcon={<Compare />}

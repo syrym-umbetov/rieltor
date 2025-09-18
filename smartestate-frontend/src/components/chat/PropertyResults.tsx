@@ -10,7 +10,10 @@ import {
 import ReactMarkdown from 'react-markdown'
 import PropertyCard from '../property/PropertyCard'
 import PropertySelectionPanel from '../property/PropertySelectionPanel'
+import NegotiationConfirmDialog from '../negotiation/NegotiationConfirmDialog'
+import CallProgressTracker from '../negotiation/CallProgressTracker'
 import { parsePropertyMarkdown, isPropertyContent, extractPropertyStats } from '@/utils/propertyParser'
+import { useNegotiation } from '@/hooks/useNegotiation'
 
 interface PropertyData {
     id?: string
@@ -39,6 +42,10 @@ export default function PropertyResults({ content }: PropertyResultsProps) {
     const stats = useMemo(() => extractPropertyStats(content), [content])
     const [selectedProperties, setSelectedProperties] = useState<{id: string | number, title: string, price: string}[]>([])
     const [selectionPanelExpanded, setSelectionPanelExpanded] = useState(false)
+    const [showNegotiationDialog, setShowNegotiationDialog] = useState(false)
+
+    // Хук для управления переговорами
+    const { isNegotiating, calls, startNegotiation } = useNegotiation()
 
     // Если не удалось распарсить как недвижимость, показываем обычный markdown
     if (properties.length === 0) {
@@ -90,6 +97,17 @@ export default function PropertyResults({ content }: PropertyResultsProps) {
         return selectedProperties.some(p => p.id === id)
     }, [selectedProperties])
 
+    const handleStartNegotiation = useCallback(() => {
+        if (selectedProperties.length > 0) {
+            setShowNegotiationDialog(true)
+        }
+    }, [selectedProperties.length])
+
+    const handleNegotiationConfirm = useCallback(async (negotiationData: any) => {
+        setShowNegotiationDialog(false)
+        await startNegotiation(negotiationData)
+    }, [startNegotiation])
+
     return (
         <Box sx={{ width: '100%' }}>
             {/* Панель выбранных объектов */}
@@ -99,6 +117,7 @@ export default function PropertyResults({ content }: PropertyResultsProps) {
                 onRemoveProperty={handleRemoveProperty}
                 expanded={selectionPanelExpanded}
                 onToggleExpand={() => setSelectionPanelExpanded(!selectionPanelExpanded)}
+                onStartNegotiation={handleStartNegotiation}
             />
 
             {/* Заголовок */}
@@ -160,6 +179,33 @@ export default function PropertyResults({ content }: PropertyResultsProps) {
                     Выберите несколько квартир для сравнения, получения отчета или отправки застройщику
                 </Typography>
             </Box>
+
+            {/* Трекер звонков */}
+            {(isNegotiating || calls.length > 0) && (
+                <Box sx={{ mt: 3 }}>
+                    <CallProgressTracker
+                        calls={calls}
+                        onViewCall={(call) => console.log('Viewing call:', call)}
+                        onScheduleViewing={(call) => console.log('Scheduling viewing:', call)}
+                    />
+                </Box>
+            )}
+
+            {/* Диалог подтверждения переговоров */}
+            <NegotiationConfirmDialog
+                open={showNegotiationDialog}
+                onClose={() => setShowNegotiationDialog(false)}
+                selectedProperties={selectedProperties.map(sp => {
+                    const property = properties.find(p => p.id === sp.id)
+                    return {
+                        ...sp,
+                        image: property?.image,
+                        link: property?.link,
+                        address: property?.address
+                    }
+                })}
+                onStartNegotiation={handleNegotiationConfirm}
+            />
         </Box>
     )
 }

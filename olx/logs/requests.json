@@ -1,0 +1,501 @@
+[
+  {
+    "timestamp": "2025-09-16T15:33:50.082Z",
+    "url": "https://olx.kz/d/nedvizhimost/prodazha-kvartir/almaty/prodam-1-komnatnuyu-kvartiru-v-almaty-IDyYK8N.html",
+    "success": false,
+    "statusCode": 422,
+    "errorMessage": "Не удалось извлечь данные из объявления OLX",
+    "responseTime": 986
+  },
+  {
+    "timestamp": "2025-09-16T15:34:22.171Z",
+    "url": "empty",
+    "success": false,
+    "statusCode": 400,
+    "errorMessage": "Неверная ссылка на OLX"
+  },
+  {
+    "timestamp": "2025-09-16T15:34:22.177Z",
+    "url": "https://example.com/some-ad",
+    "success": false,
+    "statusCode": 400,
+    "errorMessage": "Неверная ссылка на OLX"
+  },
+  {
+    "timestamp": "2025-09-16T15:34:22.181Z",
+    "url": "https://olx.kz/test-url",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-16T15:34:22.186Z",
+    "url": "https://olx.kz/test",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-16T15:34:22.191Z",
+    "url": "https://olx.kz/test-stats",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T05:41:57.641Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": false,
+    "statusCode": 422,
+    "errorMessage": "Не удалось извлечь данные из объявления OLX",
+    "responseTime": 2408
+  },
+  {
+    "timestamp": "2025-09-17T05:44:11.364Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 1766
+  },
+  {
+    "timestamp": "2025-09-17T05:44:35.738Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 1706
+  },
+  {
+    "timestamp": "2025-09-17T05:44:40.459Z",
+    "url": "https://olx.kz/d/obyavlenie/prodam-kvartiru-v-kapchagae-IDoDWLP.html",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T05:44:40.467Z",
+    "url": "https://olx.kz/d/obyavlenie/mikrorayon-bostandykskiy-zhk-askar-tau-IDqg1hu.html",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T05:55:34.899Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2408
+  },
+  {
+    "timestamp": "2025-09-17T05:56:08.850Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 1617
+  },
+  {
+    "timestamp": "2025-09-17T05:57:04.514Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?search%5Bfilter_float_price%3Afrom%5D=10000000&search%5Bfilter_float_price%3Ato%5D=25000000&search%5Bfilter_enum_rooms%5D%5B0%5D=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2648
+  },
+  {
+    "timestamp": "2025-09-17T05:57:07.179Z",
+    "url": "https://olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T06:06:02.531Z",
+    "url": "https://www.olx.kz/d/obyavlenie/dvuhkomnatnaya-kvartira-IDqgDUJ.html",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 1411
+  },
+  {
+    "timestamp": "2025-09-17T06:06:19.130Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?search%5Bfilter_float_price%3Ato%5D=25000000",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3311
+  },
+  {
+    "timestamp": "2025-09-17T06:06:28.066Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T06:34:30.352Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2971
+  },
+  {
+    "timestamp": "2025-09-17T06:35:20.482Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?search%5Bfilter_enum_rooms%5D%5B0%5D=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2290
+  },
+  {
+    "timestamp": "2025-09-17T06:37:00.022Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2462
+  },
+  {
+    "timestamp": "2025-09-17T06:37:37.728Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2819
+  },
+  {
+    "timestamp": "2025-09-17T06:38:09.572Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2299
+  },
+  {
+    "timestamp": "2025-09-17T06:38:53.008Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2393
+  },
+  {
+    "timestamp": "2025-09-17T06:50:30.236Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3005
+  },
+  {
+    "timestamp": "2025-09-17T11:57:21.280Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2681
+  },
+  {
+    "timestamp": "2025-09-17T11:57:48.158Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2893
+  },
+  {
+    "timestamp": "2025-09-17T11:58:15.301Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2693
+  },
+  {
+    "timestamp": "2025-09-17T11:59:07.357Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2797
+  },
+  {
+    "timestamp": "2025-09-17T11:59:16.128Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T12:43:27.762Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2536
+  },
+  {
+    "timestamp": "2025-09-17T12:43:45.428Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2282
+  },
+  {
+    "timestamp": "2025-09-17T12:46:46.701Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2630
+  },
+  {
+    "timestamp": "2025-09-17T12:47:26.234Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2470
+  },
+  {
+    "timestamp": "2025-09-17T12:51:41.147Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2512
+  },
+  {
+    "timestamp": "2025-09-17T12:57:31.205Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2597
+  },
+  {
+    "timestamp": "2025-09-17T13:01:03.429Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2793
+  },
+  {
+    "timestamp": "2025-09-17T13:04:25.257Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2692
+  },
+  {
+    "timestamp": "2025-09-17T13:04:43.025Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3007
+  },
+  {
+    "timestamp": "2025-09-17T13:05:54.454Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2672
+  },
+  {
+    "timestamp": "2025-09-17T13:06:17.185Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3113
+  },
+  {
+    "timestamp": "2025-09-17T13:12:11.780Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3040
+  },
+  {
+    "timestamp": "2025-09-17T13:12:22.658Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2257
+  },
+  {
+    "timestamp": "2025-09-17T13:13:02.628Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2680
+  },
+  {
+    "timestamp": "2025-09-17T13:25:21.291Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2264
+  },
+  {
+    "timestamp": "2025-09-17T13:25:38.599Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2411
+  },
+  {
+    "timestamp": "2025-09-17T13:27:58.716Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2659
+  },
+  {
+    "timestamp": "2025-09-17T13:29:29.094Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 4724
+  },
+  {
+    "timestamp": "2025-09-17T13:29:38.732Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:36:33.830Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2466
+  },
+  {
+    "timestamp": "2025-09-17T13:37:21.543Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2220
+  },
+  {
+    "timestamp": "2025-09-17T13:37:26.179Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:37:26.806Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:37:27.242Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:44:50.397Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2670
+  },
+  {
+    "timestamp": "2025-09-17T13:45:21.512Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2798
+  },
+  {
+    "timestamp": "2025-09-17T13:47:34.568Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2383
+  },
+  {
+    "timestamp": "2025-09-17T13:47:39.654Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:47:40.572Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:47:41.024Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:47:41.571Z",
+    "url": "search-filter",
+    "success": false,
+    "statusCode": 429,
+    "errorMessage": "Слишком частые запросы"
+  },
+  {
+    "timestamp": "2025-09-17T13:49:19.037Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2605
+  },
+  {
+    "timestamp": "2025-09-17T13:49:26.377Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2353
+  },
+  {
+    "timestamp": "2025-09-17T13:52:35.261Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3455
+  },
+  {
+    "timestamp": "2025-09-17T13:52:41.163Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2287
+  },
+  {
+    "timestamp": "2025-09-17T13:52:47.412Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2531
+  },
+  {
+    "timestamp": "2025-09-17T13:54:09.140Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=3",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 3205
+  },
+  {
+    "timestamp": "2025-09-17T13:54:25.803Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=19",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2411
+  },
+  {
+    "timestamp": "2025-09-17T13:55:24.599Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2875
+  },
+  {
+    "timestamp": "2025-09-17T13:55:29.838Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=2",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2147
+  },
+  {
+    "timestamp": "2025-09-17T13:55:37.436Z",
+    "url": "https://www.olx.kz/nedvizhimost/prodazha-kvartiry/alma-ata?page=3",
+    "success": true,
+    "statusCode": 200,
+    "responseTime": 2698
+  }
+]
