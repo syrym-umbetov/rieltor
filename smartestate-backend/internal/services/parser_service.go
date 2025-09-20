@@ -1,10 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -23,13 +25,28 @@ type ParserService struct {
 	db         *gorm.DB
 	debug      bool
 	maxWorkers int
+	httpClient *http.Client
 }
+
+// N8nWebhookPayload структура для отправки данных в n8n webhook
+type N8nWebhookPayload struct {
+	FiltersUsed map[string]interface{} `json:"filters_used"`
+	Properties  []models.ParsedProperty `json:"properties"`
+	TotalFound  int                    `json:"total_found"`
+}
+
+const (
+	N8N_WEBHOOK_URL = "https://umbetovs.app.n8n.cloud/webhook/analyze-realtor"
+)
 
 func NewParserService(db *gorm.DB) *ParserService {
 	return &ParserService{
 		db:         db,
 		debug:      true,
 		maxWorkers: 12, // Увеличено до 12 параллельных воркеров для максимальной скорости
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -102,6 +119,11 @@ func (s *ParserService) ParseProperties(filters models.PropertyFilters, maxPages
 	
 	if err := s.db.Save(parseRequest).Error; err != nil {
 		log.Printf("Failed to save parse results: %v", err)
+	}
+
+	// Отправляем данные в n8n webhook после успешного парсинга
+	if status == "completed" && len(allProperties) > 0 {
+		go s.sendToN8nWebhook(filters, allProperties)
 	}
 
 	return &models.ParseResponse{
@@ -1666,4 +1688,149 @@ func (s *ParserService) parseKrishaPropertyCard(element selenium.WebElement, ind
 	property.SellerType = "Неизвестно"
 
 	return property
+}
+
+// sendToN8nWebhook отправляет данные парсинга в n8n webhook для анализа
+func (s *ParserService) sendToN8nWebhook(filters models.PropertyFilters, properties []models.ParsedProperty) {
+	log.Printf("📡 Отправка данных в n8n webhook: %d объявлений", len(properties))
+
+	// Конвертируем фильтры в формат, ожидаемый n8n
+	filtersMap := s.convertFiltersToMap(filters)
+
+	// Создаем полезную нагрузку для webhook
+	payload := N8nWebhookPayload{
+		FiltersUsed: filtersMap,
+		Properties:  properties,
+		TotalFound:  len(properties),
+	}
+
+	// Маршалим в JSON
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("❌ Ошибка создания JSON для n8n webhook: %v", err)
+		return
+	}
+
+	// Отправляем POST запрос
+	req, err := http.NewRequest("POST", N8N_WEBHOOK_URL, bytes.NewBuffer(payloadJSON))
+	if err != nil {
+		log.Printf("❌ Ошибка создания HTTP запроса для n8n: %v", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Выполняем запрос
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("❌ Ошибка отправки данных в n8n webhook: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted {
+		log.Printf("✅ Данные успешно отправлены в n8n (статус: %d)", resp.StatusCode)
+	} else {
+		log.Printf("⚠️ n8n webhook ответил с кодом: %d", resp.StatusCode)
+	}
+}
+
+// convertFiltersToMap конвертирует структуру фильтров в map для n8n
+func (s *ParserService) convertFiltersToMap(filters models.PropertyFilters) map[string]interface{} {
+	filtersMap := make(map[string]interface{})
+
+	// Основные параметры
+	filtersMap["city"] = "almaty"
+	filtersMap["district"] = ""
+	filtersMap["page"] = 1
+	filtersMap["collectAllPages"] = true
+	filtersMap["maxResults"] = 200
+
+	// Цена
+	if filters.PriceMin != nil {
+		filtersMap["priceFrom"] = *filters.PriceMin
+	} else {
+		filtersMap["priceFrom"] = ""
+	}
+
+	if filters.PriceMax != nil {
+		filtersMap["priceTo"] = *filters.PriceMax
+	} else {
+		filtersMap["priceTo"] = ""
+	}
+
+	// Комнаты
+	if filters.Rooms != nil {
+		filtersMap["rooms"] = *filters.Rooms
+	} else {
+		filtersMap["rooms"] = ""
+	}
+
+	// Площадь
+	if filters.TotalAreaFrom != nil {
+		filtersMap["areaFrom"] = *filters.TotalAreaFrom
+	} else {
+		filtersMap["areaFrom"] = ""
+	}
+
+	if filters.TotalAreaTo != nil {
+		filtersMap["areaTo"] = *filters.TotalAreaTo
+	} else {
+		filtersMap["areaTo"] = ""
+	}
+
+	// Площадь кухни (пока не используется, но добавим для совместимости)
+	filtersMap["kitchenAreaFrom"] = ""
+	filtersMap["kitchenAreaTo"] = ""
+
+	// Этаж
+	if filters.FloorFrom != nil {
+		filtersMap["floorFrom"] = *filters.FloorFrom
+	} else {
+		filtersMap["floorFrom"] = ""
+	}
+
+	if filters.FloorTo != nil {
+		filtersMap["floorTo"] = *filters.FloorTo
+	} else {
+		filtersMap["floorTo"] = ""
+	}
+
+	// Флаги этажа
+	filtersMap["floorNotFirst"] = filters.NotFirstFloor
+	filtersMap["floorNotLast"] = filters.NotLastFloor
+
+	// Этажность дома
+	if filters.TotalFloorsFrom != nil {
+		filtersMap["houseFloorFrom"] = *filters.TotalFloorsFrom
+	} else {
+		filtersMap["houseFloorFrom"] = ""
+	}
+
+	if filters.TotalFloorsTo != nil {
+		filtersMap["houseFloorTo"] = *filters.TotalFloorsTo
+	} else {
+		filtersMap["houseFloorTo"] = ""
+	}
+
+	// Год постройки
+	if filters.BuildYearFrom != nil {
+		filtersMap["yearFrom"] = *filters.BuildYearFrom
+	} else {
+		filtersMap["yearFrom"] = ""
+	}
+
+	if filters.BuildYearTo != nil {
+		filtersMap["yearTo"] = *filters.BuildYearTo
+	} else {
+		filtersMap["yearTo"] = ""
+	}
+
+	// Дополнительные параметры
+	filtersMap["houseType"] = ""
+	filtersMap["whoType"] = ""
+	filtersMap["hasPhoto"] = filters.HasPhotos
+	filtersMap["complex"] = filters.ResidentialComplex
+
+	return filtersMap
 }

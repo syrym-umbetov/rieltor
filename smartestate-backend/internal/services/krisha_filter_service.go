@@ -1,6 +1,8 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +16,17 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"smartestate/internal/models"
 )
+
+const (
+	N8N_WEBHOOK_URL_KRISHA = "https://umbetovs.app.n8n.cloud/webhook/analyze-realtor"
+)
+
+// N8nWebhookPayloadKrisha структура для отправки данных в n8n
+type N8nWebhookPayloadKrisha struct {
+	FiltersUsed map[string]interface{}    `json:"filters_used"`
+	Properties  []models.ParsedProperty   `json:"properties"`
+	TotalFound  int                      `json:"total_found"`
+}
 
 // KrishaFilterService - сервис для работы с фильтрами Krisha.kz
 type KrishaFilterService struct {
@@ -210,6 +223,11 @@ finished:
 	apartmentsWithoutImages := len(allProperties) - apartmentsWithImages
 
 	log.Printf("📸 Krisha Filter: С изображениями: %d, без изображений: %d", apartmentsWithImages, apartmentsWithoutImages)
+
+	// Отправляем данные в n8n webhook если найдены объявления
+	if len(allProperties) > 0 {
+		go s.sendToN8nWebhook(filters, allProperties)
+	}
 
 	result := &KrishaResult{
 		Properties:  allProperties,
@@ -755,4 +773,122 @@ func (s *KrishaFilterService) formatPrice(price int64) string {
 	}
 
 	return strings.Join(result, " ")
+}
+
+// sendToN8nWebhook отправляет данные в n8n webhook
+func (s *KrishaFilterService) sendToN8nWebhook(filters KrishaFilters, properties []models.ParsedProperty) {
+	log.Printf("📡 Krisha Filter: Отправка данных в n8n webhook: %d объявлений", len(properties))
+
+	// Конвертируем фильтры в формат, ожидаемый n8n
+	filtersMap := s.convertKrishaFiltersToMap(filters)
+
+	// Создаем полезную нагрузку для webhook
+	payload := N8nWebhookPayloadKrisha{
+		FiltersUsed: filtersMap,
+		Properties:  properties,
+		TotalFound:  len(properties),
+	}
+
+	// Маршалим в JSON
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("❌ Krisha Filter: Ошибка создания JSON для n8n webhook: %v", err)
+		return
+	}
+
+	// Отправляем POST запрос
+	req, err := http.NewRequest("POST", N8N_WEBHOOK_URL_KRISHA, bytes.NewBuffer(payloadJSON))
+	if err != nil {
+		log.Printf("❌ Krisha Filter: Ошибка создания HTTP запроса для n8n: %v", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Выполняем запрос
+	resp, err := s.client.Do(req)
+	if err != nil {
+		log.Printf("❌ Krisha Filter: Ошибка отправки запроса в n8n: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Читаем ответ
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("❌ Krisha Filter: Ошибка чтения ответа от n8n: %v", err)
+		return
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("✅ Krisha Filter: Данные успешно отправлены в n8n webhook")
+		log.Printf("📄 Krisha Filter: Ответ от n8n: %s", string(responseBody))
+	} else {
+		log.Printf("❌ Krisha Filter: n8n webhook вернул ошибку %d: %s", resp.StatusCode, string(responseBody))
+	}
+}
+
+// convertKrishaFiltersToMap конвертирует KrishaFilters в map для n8n
+func (s *KrishaFilterService) convertKrishaFiltersToMap(filters KrishaFilters) map[string]interface{} {
+	filtersMap := make(map[string]interface{})
+
+	if filters.City != "" {
+		filtersMap["city"] = filters.City
+	}
+	if filters.District != "" {
+		filtersMap["district"] = filters.District
+	}
+	if filters.PriceFrom != "" {
+		filtersMap["price_min"] = filters.PriceFrom
+	}
+	if filters.PriceTo != "" {
+		filtersMap["price_max"] = filters.PriceTo
+	}
+	if filters.Rooms != "" {
+		filtersMap["rooms"] = filters.Rooms
+	}
+	if filters.AreaFrom != "" {
+		filtersMap["total_area_from"] = filters.AreaFrom
+	}
+	if filters.AreaTo != "" {
+		filtersMap["total_area_to"] = filters.AreaTo
+	}
+	if filters.KitchenAreaFrom != "" {
+		filtersMap["kitchen_area_from"] = filters.KitchenAreaFrom
+	}
+	if filters.KitchenAreaTo != "" {
+		filtersMap["kitchen_area_to"] = filters.KitchenAreaTo
+	}
+	if filters.FloorFrom != "" {
+		filtersMap["floor_from"] = filters.FloorFrom
+	}
+	if filters.FloorTo != "" {
+		filtersMap["floor_to"] = filters.FloorTo
+	}
+	if filters.FloorNotFirst {
+		filtersMap["not_first_floor"] = true
+	}
+	if filters.FloorNotLast {
+		filtersMap["not_last_floor"] = true
+	}
+	if filters.HouseFloorFrom != "" {
+		filtersMap["total_floors_from"] = filters.HouseFloorFrom
+	}
+	if filters.HouseFloorTo != "" {
+		filtersMap["total_floors_to"] = filters.HouseFloorTo
+	}
+	if filters.YearFrom != "" {
+		filtersMap["build_year_from"] = filters.YearFrom
+	}
+	if filters.YearTo != "" {
+		filtersMap["build_year_to"] = filters.YearTo
+	}
+	if filters.CollectAllPages {
+		filtersMap["collect_all_pages"] = true
+	}
+	if filters.MaxResults > 0 {
+		filtersMap["max_results"] = filters.MaxResults
+	}
+
+	return filtersMap
 }
